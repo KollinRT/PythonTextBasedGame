@@ -56,10 +56,12 @@ print("Woot, we in the game!")
 # elif playerClass == "Mage":
 #     exec(f"myCharacter = {playerClass}('{playerName}', 1, 100, 15, 50, critDmg=125)")
 
-# Start playing loop
+# # Start playing loop
 while isCharacterAlive == True:
 # Character is initialized now from above. Now we need to start the movement.
     promptMovement()
     print(f"movePath is {movePath}")
 
 # enemyDmg(Alex, myCharacter)
+
+# print(myCharacter)

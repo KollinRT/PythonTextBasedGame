@@ -12,8 +12,8 @@ movePath.append(initPos)
 ableToCast = [] # For mages to be able to cast. See chooseSpell()
 
 # Characters Initialized
-myCharacter = Player("Kollin", 1, 100, 50, critDmg=125)
-Alex = Enemy("Alex", 1, 100, 7)
+myCharacter = Mage("Kollin", 1, 10, 20, 50)
+Alex = Enemy("Alex", 1, 10, 7)
 
 # Some actions that can be carried out
 def roll():
@@ -71,6 +71,7 @@ def start_battle(player, enemy):
         if player.hp <= 0:
             print(f"{player.name} has died!")
             bothAlive = False
+            isCharacterAlive = False
             print("Game Over! (Time to cancel)")
 
         elif enemy.hp <= 0:
@@ -78,11 +79,13 @@ def start_battle(player, enemy):
             print(f"Remaining HP {player.hp}")
             Alex.hp = 100
             bothAlive = False
+            player.exp += enemy.expWorth
+            player.checkLevel()
+            print(player.level)
             promptMovement()
 
     # Transition back to moving interaction! How to do so? Need to create a function!
-    print("We get to transition back to moving!")
-
+    # print("We get to transition back to moving!")
 
 def battling(player, enemy):
     """
@@ -310,10 +313,22 @@ def movement(n1,n2):
     if checkNeighbors(n1,n2): # check that it is true
         # print(G[n1])
         # print("YASSS") # just a print statement to see that it works...
-        if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP:
-            myCharacter.hp = myCharacter.maxHP
-        else:
-            myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
+        if isinstance(myCharacter, Mage):
+            if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP :
+                myCharacter.hp = myCharacter.maxHP
+                myCharacter.mp = myCharacter.maxMP
+                print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
+            else:
+                myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
+                myCharacter.mp += 0.10*myCharacter.maxMP
+                print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
+        elif isinstance(myCharacter, Player):
+            if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP:
+                myCharacter.hp = myCharacter.maxHP
+                print(f"hp: {myCharacter.hp}")
+            else:
+                myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
+                print(f"hp: {myCharacter.hp}")
         movePath.append(n2)
         return movePath # not sure if this'll wipe out the 'A1' or not....
     
@@ -440,3 +455,12 @@ def promptMovement():
             cycleNodeTypes(G, myCharacter, Alex)
         else:
             print("not a valid choice, please reselect")
+
+# def generateLevels(lowLevel,highLevel):
+#     exp = -100
+#     expTotal = []
+#     for i in range(lowLevel,highLevel):
+#         exp += i*100
+#         expTotal.append(exp)
+# #         print(f"level {i}:, {expTotal[-1]}")
+#     return expTotal
