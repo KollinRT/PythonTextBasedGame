@@ -70,18 +70,21 @@ Game development is new to me, so bear with please. I am learning as I go in ter
   - [ ] Write an exp level up function
   - [ ] Get the shop working
     - [ ] add gold acquisition methods
-
-
-
+  - [ ] Add fishing
+<br>
+- [ ] Add more comprehensive documentation
 - [ ] More comprehensive testing
   - [ ] determine how to best write the tests with pytest.  
   - [ ] test new functions as implemented
+<br>
 
 ### Stretch implementations
 - [ ] Additional functionalities  
-  - [ ] Maybe extend to allow a "companion" assistant during battle.
-  - [ ] Add fishing
-- [ ] Additional Classes
+  - [ ] Additional characters during battle
+    - [ ] Maybe extend to allow a "companion" assistant during battle.
+    - [ ] Add the capacity for multiple enemies as well
+      - Would involve the need to implement logic for both targeting additional enemies and additional players.
+- [ ] Additional Classes?
   - [ ] Ranger with a companion monster and advanced scouting?
     - [ ] Character pathfinding. Maybe this class has support for utilizing the graph pathfinding algorithms to find the closest path between current location and the next town or chest or something?
   - [ ] Cleric with heals?
@@ -90,6 +93,9 @@ Game development is new to me, so bear with please. I am learning as I go in ter
 
 ### Seeking Feedback
 Please submit any pull requests or leave comments if you would like any features implemented!
+
+If you have any ideas on how to better implement the logic or in adding additional features, please feel free to reach out to me via the contact form on my GitHub pages website at [KollinRT.github.io](https://kollinrt.github.io/).
+
 
 <!-- ### Completed Column ✓
 - [x] Completed task title  
