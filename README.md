@@ -61,12 +61,10 @@ Game development is new to me, so bear with please. I am learning as I go in ter
   - [ ] Get the shop working
     - [ ] add gold acquisition methods
   - [ ] Add fishing
-<br>
 - [ ] Add more comprehensive documentation
 - [ ] More comprehensive testing
   - [ ] determine how to best write the tests with pytest.  
   - [ ] test new functions as implemented
-<br>
 
 ### Stretch implementations
 - [ ] Additional functionalities  
