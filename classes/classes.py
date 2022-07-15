@@ -93,12 +93,15 @@ class Player:
         for i in range(0,15):
             if self.exp > self.expToLevel[i]:
                 self.levelsAttained.append(i)
-                print(f"level {i+1}: True")
-                self.level = self.levelsAttained[-1]+1
+                if self.level < self.levelsAttained[-1]+1:
+                    print(f"level {i+1}: True")
+                    self.levelUp()
+                    self.level = self.levelsAttained[-1]+1
+
 
 class Enemy(Player):
     # Maybe fix this!
-    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500):
+    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500, maxHP=10):
         self.name = name
         self.level = level
         self.hp = hp
@@ -106,9 +109,13 @@ class Enemy(Player):
         self.critDmg = critDmg  # 1 is default
         self.critChance = critChance  # 100% default
         self.expWorth = expWorth
+        self.maxHP = maxHP
 
     def supriseAttack(self, name, dmg):
         print(f"{self.name} got to you first!")
+
+    def regenHP(self):
+        self.hp = self.maxHP
 
 # Kinda think about player classes?
 
@@ -126,8 +133,6 @@ class Mage(Player):
         self.mp = mp
         self.maxHP = hp
         self.maxMP = mp
-
-
 
     def magicAttack(self, player, enemy):
         print(f"{self.name} did ")

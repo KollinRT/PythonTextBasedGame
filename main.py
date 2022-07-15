@@ -60,8 +60,27 @@ print("Woot, we in the game!")
 while isCharacterAlive == True:
 # Character is initialized now from above. Now we need to start the movement.
     promptMovement()
-    print(f"movePath is {movePath}")
-
-# enemyDmg(Alex, myCharacter)
+# # enemyDmg(Alex, myCharacter)
 
 # print(myCharacter)
+# print(myCharacter.level)
+# print(f"{myCharacter.hp}, {myCharacter.mp}")
+# myCharacter.levelUp
+# print(myCharacter.level)
+# print(f"{myCharacter.hp}/{myCharacter.maxHP}; {myCharacter.mp}/{myCharacter.maxMP}")
+# print(myCharacter.exp)
+# print(myCharacter.level)
+# print(f"{myCharacter.hp}/{myCharacter.maxHP}; {myCharacter.mp}/{myCharacter.maxMP}")
+# myCharacter.exp += 200
+# myCharacter.checkLevel()
+# print(myCharacter.exp)
+# print(myCharacter.level)
+
+# myCharacter.checkLevel()
+
+# print(myCharacter.exp)
+# print(myCharacter.level)
+
+# print(myCharacter)
+# print(f"{myCharacter.hp}/{myCharacter.maxHP}; {myCharacter.mp}/{myCharacter.maxMP}")
+

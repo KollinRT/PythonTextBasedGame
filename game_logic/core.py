@@ -12,8 +12,8 @@ movePath.append(initPos)
 ableToCast = [] # For mages to be able to cast. See chooseSpell()
 
 # Characters Initialized
-myCharacter = Mage("Kollin", 1, 10, 20, 50)
-Alex = Enemy("Alex", 1, 10, 7)
+myCharacter = Mage("Kollin", 1, 15, 20, 50)
+Alex = Enemy("Alex", 1, 10, 5)
 
 # Some actions that can be carried out
 def roll():
@@ -65,14 +65,16 @@ def start_battle(player, enemy):
     bothAlive = True
     # battle shit...
     while bothAlive == True:
-        # print("before loop battling?")
+
         battling(player, enemy)
-        # print("after loop battling?")
+        
         if player.hp <= 0:
             print(f"{player.name} has died!")
             bothAlive = False
+            global isCharacterAlive
             isCharacterAlive = False
             print("Game Over! (Time to cancel)")
+            # return isCharacterAlive
 
         elif enemy.hp <= 0:
             print(f"{player.name} has killed {enemy.name}")
@@ -149,13 +151,11 @@ def dealDamage(player, enemy):
             f"{player.name} hit {enemy.name} for {player.dmg*player.critDmg}. Health remaining: {enemy.hp}")
     elif roll() < 80 and roll() > 20:
         enemy.hp = enemy.hp - player.dmg
-        print(
-            f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
+        print(f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
     else:
         print("Swing a lil harder!")
         enemy.hp = enemy.hp - player.dmg * 0.75
-        print(
-            f"{player.name} hit {enemy.name} for {player.dmg*0.75}. Health remaining: {enemy.hp}")
+        print(f"{player.name} hit {enemy.name} for {player.dmg*0.75}. Health remaining: {enemy.hp}")
 
 def chooseSpell(player):
     skills = {'fireball': {'level': 1, 'MPCost': 3, "Damage": 12},
@@ -314,13 +314,21 @@ def movement(n1,n2):
         # print(G[n1])
         # print("YASSS") # just a print statement to see that it works...
         if isinstance(myCharacter, Mage):
-            if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP :
+            if myCharacter.hp + 0.30*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP <= myCharacter.maxMP:
                 myCharacter.hp = myCharacter.maxHP
+                myCharacter.mp += 0.30*myCharacter.maxMP
+            elif myCharacter.hp + 0.30*myCharacter.maxHP <= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
+                myCharacter.hp += 0.30*myCharacter.maxHP # add 30% health regen per step TESTING... think about MP per step as well for mage 
                 myCharacter.mp = myCharacter.maxMP
                 print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
+                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
+            elif myCharacter.hp + 0.30*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
+                myCharacter.hp = myCharacter.maxHP
+                myCharacter.mp = myCharacter.maxMP
+                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
             else:
                 myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
-                myCharacter.mp += 0.10*myCharacter.maxMP
+                myCharacter.mp += 0.30*myCharacter.maxMP
                 print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
         elif isinstance(myCharacter, Player):
             if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP:
@@ -384,77 +392,80 @@ def cycleNodeTypes(G, player, enemy):
 # think about a currency from monsters... like create a gold gain from when battle ends?
 
 def promptMovement():
-    if len(list(G[movePath[-1]])) == 1:
-        print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]}")
-        choice = input("Where do you want to move?")
-        if choice == "0":
-            movement(movePath[-1], list(G[movePath[-1]])[0])
-            cycleNodeTypes(G, myCharacter, Alex)
-        else:
-            print("not a valid choice, please reselect")
-    elif len(list(G[movePath[-1]])) == 2:
-        print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]}")
-        choice = input("Where do you want to move?")
-        if choice == "0":
-            movement(movePath[-1], list(G[movePath[-1]])[0])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "1":
-#             print((movePath[-1], list(G[movePath[-1]])[1]))
-            movement(movePath[-1], list(G[movePath[-1]])[1])
-            cycleNodeTypes(G, myCharacter, Alex)
-        else:
-            print("not a valid choice, please reselect")
-    elif len(list(G[movePath[-1]])) == 3:
-        print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]}")
-        choice = input("Where do you want to move?")
-        if choice == "0":
-            movement(movePath[-1], list(G[movePath[-1]])[0])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "1":
-            movement(movePath[-1], list(G[movePath[-1]])[1])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "2":
-            movement(movePath[-1], list(G[movePath[-1]])[2])
-            cycleNodeTypes(G, myCharacter, Alex)
-        else:
-            print("not a valid choice, please reselect")
-    elif len(list(G[movePath[-1]])) == 4:
-        print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]}")
-        choice = input("Where do you want to move?")
-        if choice == "0":
-            movement(movePath[-1], list(G[movePath[-1]])[0])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "1":
-            movement(movePath[-1], list(G[movePath[-1]])[1])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "2":
-            movement(movePath[-1], list(G[movePath[-1]])[2])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "3":
-            movement(movePath[-1], list(G[movePath[-1]])[3])
-            cycleNodeTypes(G, myCharacter, Alex)
-        else:
-            print("not a valid choice, please reselect")
-    elif len(list(G[movePath[-1]])) == 5:
-        print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]} \n 4) {list(G[movePath[-1]])[4]}")
-        choice = input("Where do you want to move?")
-        if choice == "0":
-            movement(movePath[-1], list(G[movePath[-1]])[0])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "1":
-            movement(movePath[-1], list(G[movePath[-1]])[1])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "2":
-            movement(movePath[-1], list(G[movePath[-1]])[2])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "3":
-            movement(movePath[-1], list(G[movePath[-1]])[3])
-            cycleNodeTypes(G, myCharacter, Alex)
-        elif choice == "4":
-            movement(movePath[-1], list(G[movePath[-1]])[4])
-            cycleNodeTypes(G, myCharacter, Alex)
-        else:
-            print("not a valid choice, please reselect")
+    if isCharacterAlive == True:
+        if len(list(G[movePath[-1]])) == 1:
+            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]}")
+            choice = input("Where do you want to move?")
+            if choice == "0":
+                movement(movePath[-1], list(G[movePath[-1]])[0])
+                cycleNodeTypes(G, myCharacter, Alex)
+            else:
+                print("not a valid choice, please reselect")
+        elif len(list(G[movePath[-1]])) == 2:
+            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]}")
+            choice = input("Where do you want to move?")
+            if choice == "0":
+                movement(movePath[-1], list(G[movePath[-1]])[0])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "1":
+    #             print((movePath[-1], list(G[movePath[-1]])[1]))
+                movement(movePath[-1], list(G[movePath[-1]])[1])
+                cycleNodeTypes(G, myCharacter, Alex)
+            else:
+                print("not a valid choice, please reselect")
+        elif len(list(G[movePath[-1]])) == 3:
+            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]}")
+            choice = input("Where do you want to move?")
+            if choice == "0":
+                movement(movePath[-1], list(G[movePath[-1]])[0])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "1":
+                movement(movePath[-1], list(G[movePath[-1]])[1])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "2":
+                movement(movePath[-1], list(G[movePath[-1]])[2])
+                cycleNodeTypes(G, myCharacter, Alex)
+            else:
+                print("not a valid choice, please reselect")
+        elif len(list(G[movePath[-1]])) == 4:
+            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]}")
+            choice = input("Where do you want to move?")
+            if choice == "0":
+                movement(movePath[-1], list(G[movePath[-1]])[0])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "1":
+                movement(movePath[-1], list(G[movePath[-1]])[1])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "2":
+                movement(movePath[-1], list(G[movePath[-1]])[2])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "3":
+                movement(movePath[-1], list(G[movePath[-1]])[3])
+                cycleNodeTypes(G, myCharacter, Alex)
+            else:
+                print("not a valid choice, please reselect")
+        elif len(list(G[movePath[-1]])) == 5:
+            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]} \n 4) {list(G[movePath[-1]])[4]}")
+            choice = input("Where do you want to move?")
+            if choice == "0":
+                movement(movePath[-1], list(G[movePath[-1]])[0])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "1":
+                movement(movePath[-1], list(G[movePath[-1]])[1])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "2":
+                movement(movePath[-1], list(G[movePath[-1]])[2])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "3":
+                movement(movePath[-1], list(G[movePath[-1]])[3])
+                cycleNodeTypes(G, myCharacter, Alex)
+            elif choice == "4":
+                movement(movePath[-1], list(G[movePath[-1]])[4])
+                cycleNodeTypes(G, myCharacter, Alex)
+            else:
+                print("not a valid choice, please reselect")
+    else: 
+        pass
 
 # def generateLevels(lowLevel,highLevel):
 #     exp = -100
