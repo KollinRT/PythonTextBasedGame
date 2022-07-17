@@ -316,9 +316,6 @@ def addToInv(player, name, level, dmg, slot):
     elif slot == 's':
         player.obtainItem(
             {name: {'level': level, 'dmg': dmg, 'slot': 'shield'}})
-
-# def movement(dir):
-#     pass
     
 
 def checkNeighbors(n1, n2):
@@ -485,11 +482,13 @@ def promptMovement():
     else: 
         pass
 
+### How to generate character levels. In the classes.py file I have levels 1,15 in the exp list.###
+
 # def generateLevels(lowLevel,highLevel):
 #     exp = -100
 #     expTotal = []
 #     for i in range(lowLevel,highLevel):
 #         exp += i*100
 #         expTotal.append(exp)
-# #         print(f"level {i}:, {expTotal[-1]}")
+# #       print(f"level {i}:, {expTotal[-1]}")
 #     return expTotal
