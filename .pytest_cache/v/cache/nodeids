@@ -1,6 +1,0 @@
-[
-  "tests/test_strings.py::test_singleWord_string_cap",
-  "tests/test_strings.py::test_multiWord_string_cap",
-  "tests/test_with_pytest.py::test_always_passes",
-  "tests/test_with_pytest.py::test_always_fails"
-]
