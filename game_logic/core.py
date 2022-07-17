@@ -3,6 +3,7 @@ from classes.classes import *
 from maps.beginner_map import G
 from customErrors import *
 import networkx as nx 
+# from .main import myCharacter
 
 # Condition for the game
 isCharacterAlive = True
@@ -12,10 +13,26 @@ movePath.append(initPos)
 ableToCast = [] # For mages to be able to cast. See chooseSpell()
 
 # Characters Initialized
-myCharacter = Mage("Kollin", 1, 15, 20, 50)
+# myCharacter = Mage("Kollin", 1, 15, 20, 50)
 Alex = Enemy("Alex", 1, 10, 5)
 
 # Some actions that can be carried out
+def startGame():
+    global myCharacter
+    print("Welcome to the game!")
+    classChoices = ["Player", "Mage"]
+    playerClass = input('Are you going to be a Player or a Mage?: ')
+    while playerClass not in classChoices:
+        print("Please reselect your class!")
+        playerClass = input('Are you going to be a Player or a Mage?: ')
+    playerName = input("What is your character's name?: ")
+    print(f"{playerName} is a {playerClass}")
+    if playerClass == "Player":
+        myCharacter = Player(playerName, 1, 100, 50, critDmg=125)
+    elif playerClass == "Mage":
+        myCharacter = Mage(playerName, 1, 100, 15, 50, critDmg=125)
+    return myCharacter
+
 def roll():
     global decider
     decider = int(random.random()*100)
@@ -79,7 +96,8 @@ def start_battle(player, enemy):
         elif enemy.hp <= 0:
             print(f"{player.name} has killed {enemy.name}")
             print(f"Remaining HP {player.hp}")
-            Alex.hp = 100
+            # Alex.hp = 100
+            Alex.regenHP()
             bothAlive = False
             player.exp += enemy.expWorth
             player.checkLevel()

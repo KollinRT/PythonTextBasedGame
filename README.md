@@ -37,13 +37,10 @@ Game development is new to me, so bear with please. I am learning as I go in ter
 │
 ├── graphAlgs.py (The module which contains the graph algorithms
 │                 which will be
-│                             
-├── customErrors.py (A module which contains custom errors for
-│              error handling for certain game-specific issues.)
-│
-│
-└── train_mnist_model.pt (Trains the PyTorch model and saves the trained
-                          parameters as pytorch_model.pt.)
+│                              
+└── customErrors.py (A module which contains custom errors for
+                     error handling for certain game-specific issues.)
+
 ```
 
 <br>
