@@ -15,7 +15,6 @@ Game development is new to me, so bear with please. I am learning as I go in ter
 │   │
 │   └── test_maps.py (A file contained to test the functions
 │                      implemented with graphAlgs)
-│
 ├── classes
 │   ├── __init__.py (A file used to call classes as a module.)
 │   │
@@ -32,16 +31,27 @@ Game development is new to me, so bear with please. I am learning as I go in ter
 │   │                    a basic map with a few different zones.)
 │   └── intermediate_map.py (Not constructed yet but will be a map
 │                             with additional zones.)
+├── algs
+│   ├── __init__.py (A file used to call algs as a module.)
+│   │
+│   ├── graphAlgs.py (The module which contains the graph
+│   │                    algorithms)
+│   ├── searchAlgs.py (The module which contains the graph
+│   │                    algorithms
+│   └── sortAlgs.py (Not constructed yet but will be a map
+│                             with additional zones.)
+├── items
+│   ├── __init__.py (A file used to call algs as a module.)
+│   │
+│   └── items.py (Used as a catch for introducing a new items class.)
 │                            
-├── main.py (Consists of the logic that strings together the program)
+├── main.py (Consists of the logic that strings together the program.)
 │
-├── graphAlgs.py (The module which contains the graph algorithms
-│                 which will be
 │                              
 └── customErrors.py (A module which contains custom errors for
                      error handling for certain game-specific issues.)
-
 ```
+
 
 <br>
 
@@ -50,18 +60,20 @@ Game development is new to me, so bear with please. I am learning as I go in ter
 ## Goals:
 ### To Implement
 - [ ] Finish basics of game logic  
-  - [ ] Get the start of game setup
-  - [ ] Integrate game with movement
+  - [x] Get the start of game setup
+  - [x] Integrate game with movement
   - [ ] Write some sorting algorithms for the inventory sorting  
-  - [ ] Get the random encounters working
-  - [ ] Write an exp level up function
+  - [x] Get the random encounters working
+  - [x] Write an exp level up function
   - [ ] Get the shop working
-    - [ ] add gold acquisition methods
+    - [x] add gold acquisition methods
+    - [ ] add shop inventory system
   - [ ] Add fishing
 - [ ] Add more comprehensive documentation
 - [ ] More comprehensive testing
   - [ ] determine how to best write the tests with pytest.  
   - [ ] test new functions as implemented
+- [ ] Add a potion system
 
 ### Stretch implementations
 - [ ] Additional functionalities  
@@ -87,17 +99,30 @@ class Enemy(Player):
 def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500):
 ```
 
+## How to Run
+### Code
+Download the code and unzip it. Launch up your terminal and use a terminal language, I prefer bash. Then execute the command
+```
+python3 main.py
+```
+and enjoy!
+
+### Tested using
+```
+Python == 3.10.4
+networkx == 2.7.1/2.8.4
+```
+
+### Common Errors
+
+Running
+```
+export PYTHONPATH="${PYTHONPATH}:/path/to/your/project/"
+```
+in you terminal will alleviate the issue of `ModuleNotFoundError:` that occurs when trying to work with the software and will be needed to fix import errors.
 
 
 ### Seeking Feedback
 Please submit any pull requests or leave comments if you would like any features implemented!
 
 If you have any ideas on how to better implement the logic or in adding additional features, please feel free to reach out to me via the contact form on my GitHub pages website at [KollinRT.github.io](https://kollinrt.github.io/).
-
-
-<!-- ### Completed Column ✓
-- [x] Completed task title  
- -->
-<!-- ### To Implement
-- [ ] Task title ~3d #type @name yyyy-mm-dd  
-  - [ ] Sub-task or description   -->

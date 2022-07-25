@@ -46,7 +46,9 @@ class Player:
 
     levelsAttained = []
 
-    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, exp=0):
+    equipment = {}
+
+    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, exp=0, gp=0):
         self.name = name
         self.level = level
         self.hp = hp
@@ -55,6 +57,7 @@ class Player:
         self.critChance = critChance  # 100% default
         self.exp = exp
         self.maxHP = hp
+        self.gp = gp
 
     def __str__(self):
         return (f"{self.name} is a level {self.level} character with {self.hp} that does {self.dmg} damage")
@@ -77,12 +80,17 @@ class Player:
         # for ease of addition
 
     def checkInv(self):
-        return self.inventory
+        print(self.inventory)
+
+    def checkEquipped(self):
+        ### Double check that only so much of certain types of equipment is equippment.
+        print(self.equipment)
+
 
     def equipItem(self):
         # iterator through items in inventory...
         for items in self.inventory:
-            if self.level >= self.inventory[item]['level']:
+            if self.level >= self.inventory[items]['level']:
                 pass
         pass
 
@@ -101,7 +109,7 @@ class Player:
 
 class Enemy(Player):
     # Maybe fix this!
-    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500, maxHP=10):
+    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500, gpWorth=10, maxHP=10, exp=0):
         self.name = name
         self.level = level
         self.hp = hp
@@ -109,7 +117,17 @@ class Enemy(Player):
         self.critDmg = critDmg  # 1 is default
         self.critChance = critChance  # 100% default
         self.expWorth = expWorth
+        self.gpWorth = gpWorth
         self.maxHP = maxHP
+        self.exp = exp
+    
+    def levelUp(self):
+        self.level += 1
+        self.maxHP += random.randint(0, 11)
+        self.hp += random.randint(0, 11)
+        self.dmg += random.randint(0, 5)
+        self.expWorth += 50
+        self.gpWorth += 25
 
     def supriseAttack(self, name, dmg):
         print(f"{self.name} got to you first!")

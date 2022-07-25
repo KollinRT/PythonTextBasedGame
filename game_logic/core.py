@@ -14,7 +14,7 @@ ableToCast = [] # For mages to be able to cast. See chooseSpell()
 
 # Characters Initialized
 # myCharacter = Mage("Kollin", 1, 15, 20, 50)
-Alex = Enemy("Alex", 1, 10, 5)
+enemy = Enemy("enemy", 1, 10, 5)
 
 # Some actions that can be carried out
 def startGame():
@@ -96,10 +96,10 @@ def start_battle(player, enemy):
         elif enemy.hp <= 0:
             print(f"{player.name} has killed {enemy.name}")
             print(f"Remaining HP {player.hp}")
-            # Alex.hp = 100
-            Alex.regenHP()
+            enemy.regenHP()
             bothAlive = False
             player.exp += enemy.expWorth
+            player.gp += enemy.gpWorth 
             player.checkLevel()
             print(player.level)
             promptMovement()
@@ -335,7 +335,6 @@ def movement(n1,n2):
             elif myCharacter.hp + 0.30*myCharacter.maxHP <= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
                 myCharacter.hp += 0.30*myCharacter.maxHP # add 30% health regen per step TESTING... think about MP per step as well for mage 
                 myCharacter.mp = myCharacter.maxMP
-                print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
                 print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
             elif myCharacter.hp + 0.30*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
                 myCharacter.hp = myCharacter.maxHP
@@ -344,14 +343,16 @@ def movement(n1,n2):
             else:
                 myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
                 myCharacter.mp += 0.30*myCharacter.maxMP
-                print(f"hp: {myCharacter.hp}; mp: {myCharacter.mp}")
+                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
         elif isinstance(myCharacter, Player):
             if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP:
                 myCharacter.hp = myCharacter.maxHP
-                print(f"hp: {myCharacter.hp}")
+                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}")
             else:
                 myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
-                print(f"hp: {myCharacter.hp}")
+                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}")
+                        
+        enemyExpGain(enemy)
         movePath.append(n2)
         return movePath # not sure if this'll wipe out the 'A1' or not....
     
@@ -379,7 +380,7 @@ def cycleNodeTypes(G, player, enemy):
             if movePath[-1] in list(zoneTypes[0].keys()) and movePath[-1] == f'A{j}':
     #           print("This is encounter")
                 print(f"this is {list(zoneTypes[0].values())[0]}")
-                checkForBattle(myCharacter, Alex)
+                checkForBattle(myCharacter, enemy)
             elif movePath[-1] in list(zoneTypes[1].keys()) and movePath[-1] == f'A{j}':
     #             print("You are in the city!")
                 print(f"this is {list(zoneTypes[1].values())[0]}")
@@ -387,9 +388,14 @@ def cycleNodeTypes(G, player, enemy):
             elif movePath[-1] in list(zoneTypes[2].keys()) and movePath[-1] == f'A{j}':
                 print("Feel free to shop around!")
                 print("ADD IN SHOP FEATURE!")
+                print(f"player has {player.gp} gp")
+                print("ADD IN SHOPPING STOCK!")
                 print(f"this is {list(zoneTypes[2].values())[0]}")
             elif movePath[-1] in list(zoneTypes[3].keys()) and movePath[-1] == f'A{j}':
                 print("Drop a line and relax, it's fishing time!")# Think how to chain these functions together... wtf?
+                # can include a prompt to trigger fishing system with a function for fishing...
+                # ask yes/no if player would like to fish!
+                # create a fishing dictionary type system
                 print(f"this is {list(zoneTypes[3].values())[0]}")# Maybe over thinking this logic... Maybe separate them?
 
 # Then can combine these into a logic loop!
@@ -413,7 +419,7 @@ def promptMovement():
             choice = input("Where do you want to move?")
             if choice == "0":
                 movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             else:
                 print("not a valid choice, please reselect")
         elif len(list(G[movePath[-1]])) == 2:
@@ -421,11 +427,11 @@ def promptMovement():
             choice = input("Where do you want to move?")
             if choice == "0":
                 movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "1":
     #             print((movePath[-1], list(G[movePath[-1]])[1]))
                 movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             else:
                 print("not a valid choice, please reselect")
         elif len(list(G[movePath[-1]])) == 3:
@@ -433,13 +439,13 @@ def promptMovement():
             choice = input("Where do you want to move?")
             if choice == "0":
                 movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "1":
                 movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "2":
                 movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             else:
                 print("not a valid choice, please reselect")
         elif len(list(G[movePath[-1]])) == 4:
@@ -447,16 +453,16 @@ def promptMovement():
             choice = input("Where do you want to move?")
             if choice == "0":
                 movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "1":
                 movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "2":
                 movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "3":
                 movement(movePath[-1], list(G[movePath[-1]])[3])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             else:
                 print("not a valid choice, please reselect")
         elif len(list(G[movePath[-1]])) == 5:
@@ -464,19 +470,19 @@ def promptMovement():
             choice = input("Where do you want to move?")
             if choice == "0":
                 movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "1":
                 movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "2":
                 movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "3":
                 movement(movePath[-1], list(G[movePath[-1]])[3])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             elif choice == "4":
                 movement(movePath[-1], list(G[movePath[-1]])[4])
-                cycleNodeTypes(G, myCharacter, Alex)
+                cycleNodeTypes(G, myCharacter, enemy)
             else:
                 print("not a valid choice, please reselect")
     else: 
@@ -492,3 +498,16 @@ def promptMovement():
 #         expTotal.append(exp)
 # #       print(f"level {i}:, {expTotal[-1]}")
 #     return expTotal
+
+# Define a function for enemies level with passive time
+def enemyExpGain(enemy):
+    if enemy.level > 0 and enemy.level <= 5:
+        enemy.exp += 20
+        enemy.checkLevel()
+    elif enemy.level > 5 and enemy.level <= 10:
+        enemy.exp += 50
+        enemy.checkLevel()
+    else:
+        enemy.exp += 100
+        enemy.checkLevel()
+# updated enemy for basic level logic
