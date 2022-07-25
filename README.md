@@ -125,4 +125,4 @@ in you terminal will alleviate the issue of `ModuleNotFoundError:` that occurs w
 ### Seeking Feedback
 Please submit any pull requests or leave comments if you would like any features implemented!
 
-If you have any ideas on how to better implement the logic or in adding additional features, please feel free to reach out to me via the contact form on my GitHub pages website at [KollinRT.github.io](https://kollinrt.github.io/).
+If you have any ideas on how to better implement the logic or in adding additional features, please feel free to reach out to me via the contact form on my GitHub pages website at kollintrujillo@live.com or at the form on my website [KollinRT.github.io](https://kollinrt.github.io/).
