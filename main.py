@@ -1,23 +1,121 @@
-# import dependencies
-import random
-from customErrors import ItemError  # custom errors python file I made
-from classes.classes import *
-from game_logic.core import *
-from maps.beginner_map import G
-import networkx as nx
-# Lets start this project!
+"""Entry point for the adventure game.
 
-# Condition for the game
-isCharacterAlive = True
-movePath = [] # global for allowance of storage of movePath 
-initPos = 'A0' # initial start of map
-movePath.append(initPos)
-ableToCast = [] # For mages to be able to cast. See chooseSpell()
+Running ``python -m main`` launches the traditional text interface.  The
+``--mode pygame`` switch starts the graphical interface that uses pygame.
+"""
+
+from __future__ import annotations
+
+import argparse
+from typing import Iterable
+
+from classes.classes import Mage, Player
+from game_logic.core import GameEngine, startGame
+
+
+def _select_player_class() -> str:
+    while True:
+        choice = input("Choose a class (Player/Mage): ").strip().lower()
+        if choice in {"player", "mage"}:
+            return choice
+        print("Invalid class. Try again.")
+
+
+def _print_status(engine: GameEngine) -> None:
+    player = engine.player_party[0]
+    print("-" * 40)
+    print(f"Location: {engine.current_node} on {engine.current_map_key} map")
+    print(f"HP: {player.hp}/{player.max_hp}")
+    if isinstance(player, Mage):
+        print(f"MP: {player.mp}/{player.max_mp}")
+    print(f"Level: {player.level}  EXP: {player.exp}  Gold: {player.gp}")
+    print("Inventory:")
+    for item in player.sort_inventory():
+        print(f"  {item.name} (lvl {item.level}) x{item.quantity}")
+    print("Potions:")
+    for potion in player.potions.values():
+        print(f"  {potion.name} x{potion.quantity}")
+    print("-" * 40)
+
+
+def _prompt_command(engine: GameEngine) -> bool:
+    neighbors = engine.neighbors()
+    print(f"You can travel to: {', '.join(neighbors)}")
+    command = input("Enter command (move <node>/potion <name>/quit): ").strip().lower()
+    if command == "quit":
+        return False
+    if command.startswith("move"):
+        _, _, destination = command.partition(" ")
+        if destination:
+            try:
+                events = engine.move_to(destination.upper())
+            except ValueError as exc:  # pragma: no cover - exercised interactively
+                print(exc)
+                return True
+            for event in events:
+                if event.kind == "battle":
+                    print(event.payload)
+                elif event.kind == "shop":
+                    _handle_shop(engine)
+                elif event.kind == "fishing":
+                    print(event.payload)
+                elif event.kind == "transition":
+                    print(f"Traveled to {event.payload} map")
+            return True
+    if command.startswith("potion"):
+        _, _, potion_name = command.partition(" ")
+        try:
+            engine.player_party[0].use_potion(potion_name.title())
+            print(f"Used {potion_name}")
+        except (KeyError, ValueError) as exc:  # pragma: no cover - interactive flow
+            print(exc)
+        return True
+    print("Unknown command")
+    return True
+
+
+def _handle_shop(engine: GameEngine) -> None:
+    player = engine.player_party[0]
+    print("Welcome to the shop! Available items:")
+    for item in engine.shop.list_items():
+        print(f"  {item.name} - {item.value}gp (qty {item.quantity})")
+    selection = input("Enter the item name to purchase or leave blank to exit: ").strip()
+    if not selection:
+        return
+    try:
+        item = engine.purchase_item(selection)
+        print(f"Purchased {item.name}")
+    except (KeyError, ValueError) as exc:  # pragma: no cover - interactive only
+        print(exc)
+
+
+def run_text_mode() -> None:
+    name = input("What is your character's name?: ").strip() or "Hero"
+    class_choice = _select_player_class()
+    player = startGame(name, class_choice)
+    engine = GameEngine()
+    engine.start_new_game(player)
+    print("Welcome to the adventure!")
+    running = True
+    while running and player.is_alive():
+        _print_status(engine)
+        running = _prompt_command(engine)
+    if not player.is_alive():
+        print("Your journey ends here...")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Python Text Adventure")
+    parser.add_argument("--mode", choices=["text", "pygame"], default="text")
+    args = parser.parse_args()
+    if args.mode == "pygame":
+        from ui.pygame_ui import run_pygame_ui
+
+        run_pygame_ui()
+    else:
+        run_text_mode()
+
 
 if __name__ == "__main__":
-    startGame()
-    # Start playing loop
-    while isCharacterAlive == True:
-    # Character is initialized now from above. Now we need to start the movement.
-        promptMovement()
-    # enemyDmg(Alex, myCharacter)
+    main()
+

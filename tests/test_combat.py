@@ -1,24 +1,26 @@
-import pytest
-from classes.classes import Player, Enemy
-from game_logic.core import dealDamage, roll
+import random
 
-def test_roll():
-    decider = roll()
-    assert decider >= 0 and decider <= 100
+from classes.classes import Enemy, Mage, Player
+from game_logic.core import Battle, dealDamage, roll
 
-def test_dealDamage():
-    # Initialize Player and Enemy
-    myCharacter = Player("player", 1, 100, 50, critDmg=125)
-    enemy = Enemy("enemy", 1, 10, 5)
 
-    # Get starting HP
-    initHP = enemy.hp
-    
-    # call dealDamage fxn and update hp variable for enemy
-    dealDamage(myCharacter, enemy)
-    currHP = enemy.hp
+def test_roll_returns_percentage():
+    value = roll(random.Random(0))
+    assert 0 <= value <= 100
 
-    assert initHP != currHP # verify that enemy loses hp!
 
-def test_deal():
-    pass
+def test_deal_damage_reduces_enemy_hp():
+    hero = Player("Hero", 1, 100, 15)
+    foe = Enemy("Goblin", 1, 60, 5)
+    original_hp = foe.hp
+    damage = dealDamage(hero, foe, random.Random(1))
+    assert foe.hp == original_hp - damage
+
+
+def test_battle_handles_multiple_enemies():
+    hero = Mage("Mage", 3, 90, 50, 12)
+    enemies = [Enemy("Goblin 1", 2, 50, 6), Enemy("Goblin 2", 2, 50, 6)]
+    battle = Battle([hero], enemies, rng=random.Random(2))
+    result = battle.resolve()
+    assert all(not enemy.is_alive() for enemy in enemies)
+    assert result.xp_gained > 0

@@ -1,64 +1,30 @@
-# test_players.py
-import pytest
-from game_logic.core import *
-from maps.beginner_map import *
+from classes.classes import Item, Mage, Player
 from classes.items import HealingItems
 
-# myPlayer = Player("Kollin", 1, 100, 50, critDmg=1.25)
-# Alex = Enemy("Alex", 1, 70, 7)
-# myplayer2 = Mage("Kennedy", 1, 80, 15, 50, critDmg=1.25)
-# # dealDamage(myPlayer, Alex)
-# print(myPlayer.level)
 
-# while isCharacterAlive == True:
-#     print("Woot, we in the game!")
-#     isCharacterAlive = False
-
-# start_battle(myplayer2, Alex)
-
-# def test_movement():
-#     movePath = [] # global for allowance of storage of movePath 
-        
-#     # Override the Python built-in input method 
-#     monkeypatch.setattr('sys.stdin', '0')
-
-#     initPos = 'A0' # initial start of map
-#     movePath.append(initPos)
-#     promptMovement()
-
-#     assert movePath[-1] != 'A0'
-    
-
-def test_inventory_add():
-    myplayer = Player("player", 1, 10, 5)
-    currentInv = myplayer.inventory
-    myplayer.obtainItem()
+def test_player_inventory_management():
+    player = Player("Hero", 1, 100, 10)
+    sword = Item("Training Sword", level=1, slot="weapon", dmg=4)
+    player.add_item(sword)
+    assert "Training Sword" in player.inventory
+    player.equip_item("Training Sword")
+    assert player.equipment["weapon"].name == "Training Sword"
 
 
+def test_use_potion_restores_resources():
+    mage = Mage("Mage", 1, 60, 20, 8)
+    potion = Item("Basic HP Potion", level=1, slot="potion", hp=25)
+    mage.potions[potion.name] = potion
+    mage.take_damage(30)
+    mage.use_potion("Basic HP Potion")
+    assert mage.hp == mage.max_hp - 5
 
-    # def obtainItem(self, item):
-    #     self.inventory.update(item)
-    #     # for ease of addition
 
-    # def checkInv(self):
-    #     return self.inventory
-
-
-def test_healingPot():
-    HPPot = HealingItems(25, 0)
-    myplayer = Player("player", 1, 10, 5)
-    playerHP = myplayer.hp
-    HPPot.healPlayer(myplayer)
-    postPotHP = myplayer.hp
-
-    assert playerHP + HPPot.HPrest == postPotHP
-
-def test_MPPot():
-    MPPot = HealingItems(0, 25)
-    mymage = Mage("mage", 1, 10, 15, 5)
-    playerMP = mymage.mp
-    MPPot.healPlayer(mymage)
-    postPotMP = mymage.mp
-
-    assert playerMP + MPPot.MPrest == postPotMP
-
+def test_healing_item_helper():
+    mage = Mage("Mage", 1, 50, 20, 8)
+    item = HealingItems(20, 10)
+    mage.take_damage(25)
+    mage.mp = 5
+    item.healPlayer(mage)
+    assert mage.hp == mage.max_hp - 5
+    assert mage.mp == 15

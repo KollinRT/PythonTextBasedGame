@@ -1,86 +1,111 @@
-from customErrors import *
-from classes.classes import *
+"""Definitions of items, shops and drop tables used throughout the game."""
 
-def addToInv(player, name, level, dmg, slot):
-    if name in player.inventory:
-        raise ItemError("There is already an item with that name!")
-    if slot == 'w':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'weapon'}})
-    elif slot == 'a':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'armor'}})
-    elif slot == 's':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'shield'}})
+from __future__ import annotations
 
-# Initialize potion types
-potionTypes = {'basicHPPot': {'level': 1, 'hp': 25, 'mp': 0}, 'basicMPPot': {'level': 1, 'hp': 0, 'mp': 25}, 'nextTierHPPots': {'level': 1, 'hp': 50, 'mp':0}, 'nextTierMPPots':{'level': 5, 'hp': 0, 'mp': 50}}
-basicHPPot = {'basicHPPot': {'level': 1, 'hp': 25, 'mp': 0}}
-basicMPPot = {'basicMPPot': {'level': 1, 'hp': 0, 'mp': 25}}
-nextTierHPPot = {'nextTierHPPot': {'level': 5, 'hp': 50, 'mp':0}}
-nextTierMPPot = {'nextTierMPPot': {'level': 5, 'hp': 0, 'mp':50}}
-potionTypesList = ['basicHPPot', 'basicMPPot', 'nextTierHPPot', 'nextTierMPPot']
+import random
+from dataclasses import dataclass
+from typing import Dict, Iterable, List
 
-def addToPotions(player, name, hp, mp, level):
-    # # Initialize potion types
-    # potionTypes = {{'basicHPPot': {'level': 1, 'hp': 25, 'mp': 0}}, {'basicMPPot': {'level': 1, 'hp': 0, 'mp': 25}}}
-    potionTypesList = ['basicHPPot', 'basicMPPot', 'nextTierHPPot','nextTierMPPot' ]
-    player.obtainItem({name: {'level': level, 'hp': hp, 'mp': mp}})
-# potionTypes = {'basicHPPot': {'level': 1, 'hp': 25, 'mp': 0}, 'basicMPPot': {'level': 1, 'hp': 0, 'mp': 25}, 'nextTierHPPots': {'level': 1, 'hp': 50, 'mp':0}, 'nextTierMPPots':{'level': 5, 'hp': 0, 'mp': 50}}
-
-def get_all_main_keys(d):
-    for key, value in d.items():
-        yield key
+from classes.classes import Item
 
 
-for x in get_all_main_keys(potionTypes):
-    print(x)
+POTION_LIBRARY: Dict[str, Item] = {
+    "basic_hp": Item("Basic HP Potion", level=1, slot="potion", hp=25, value=25),
+    "basic_mp": Item("Basic MP Potion", level=1, slot="potion", mp=25, value=30),
+    "greater_hp": Item("Greater HP Potion", level=5, slot="potion", hp=50, value=75),
+    "greater_mp": Item("Greater MP Potion", level=5, slot="potion", mp=50, value=80),
+}
 
 
-myplayer = Mage("player", 1, 10,15, 5)
-myplayer.checkInv()
-print("prior to add")
-addToPotions(myplayer, 'basicHPPot', 25, 0, 1)
-print("after to add")
-myplayer.checkInv()
-# potionTypes['']
+def create_potion(key: str, *, quantity: int = 1) -> Item:
+    potion = POTION_LIBRARY[key]
+    return potion.copy(quantity=quantity)
 
-def obtainItem(player, item):
-    player.inventory.update(item)
 
-print("prior to add")
-obtainItem(myplayer, {'basicHPPot': {'level': 1, 'hp': 25, 'mp': 0}})
-print("after to add")
-myplayer.checkInv()
+WEAPON_LIBRARY: Dict[str, Item] = {
+    "training_sword": Item("Training Sword", level=1, slot="weapon", dmg=4, value=50),
+    "oak_staff": Item("Oak Staff", level=1, slot="weapon", dmg=3, value=45),
+    "iron_sword": Item("Iron Sword", level=3, slot="weapon", dmg=7, value=120),
+}
 
-obtainItem(myplayer, basicHPPot)
-obtainItem(myplayer, basicMPPot)
-obtainItem(myplayer, nextTierHPPot)
-obtainItem(myplayer, nextTierMPPot)
-myplayer.checkInv()
-print(myplayer.inventory['basicHPPot']['hp'])
-# print(myplayer.inventory)
 
-def drinkPotion(player):
-    for potion in potionTypesList:
-        if player.level >= player.inventory[potion]['level'] and str(potion) in player.inventory:
-            print(f"allow this potion {potion}")
-            
+ARMOR_LIBRARY: Dict[str, Item] = {
+    "leather_armor": Item("Leather Armor", level=1, slot="armor", value=60),
+    "apprentice_robe": Item("Apprentice Robe", level=1, slot="armor", value=55),
+    "iron_mail": Item("Iron Mail", level=3, slot="armor", value=140),
+}
 
-# def drinkPotion(player, potion):
-#     if player.level >= player.inventory[potion]['level']:
-#         print(f"{player.name} drank the potion and is now at {player.hp}/{player.maxHP}")
 
-drinkPotion(myplayer)
+def default_shop_stock() -> Dict[str, Item]:
+    stock = {}
+    for item in [
+        create_potion("basic_hp", quantity=3),
+        create_potion("basic_mp", quantity=3),
+        WEAPON_LIBRARY["training_sword"].copy(),
+        ARMOR_LIBRARY["leather_armor"].copy(),
+    ]:
+        stock[item.name] = item
+    return stock
 
-# drinkPotion(myplayer, basicHPPot)
-# print(f"What is this? \n {basicHPPot['basicHPPot']['level']}")
-# print(myplayer.inventory['basicHPPot'])
-# print(basicHPPot.items())
-# print(basicHPPot['basicHPPot']['level'])
 
-# how to figure out the quantity issue of the dictionary then also how to
-# remove quantity as well. How to remove dict entry if 'qty': 0 of potion
-# I imagine just searching by that item then there has to be some dict
-# entry remove method built-in to the class?
+def random_loot_drop(level: int) -> Item:
+    """Return an item appropriate for the player's level."""
+
+    possible: List[Item] = [create_potion("basic_hp")]
+    if level >= 3:
+        possible.append(WEAPON_LIBRARY["iron_sword"].copy())
+    if level >= 5:
+        possible.append(create_potion("greater_hp"))
+    return random.choice(possible)
+
+
+def sort_items(items: Iterable[Item], key: str = "name") -> List[Item]:
+    if key not in {"name", "level", "value"}:
+        raise ValueError("key must be 'name', 'level' or 'value'")
+    return sorted(items, key=lambda item: getattr(item, key))
+
+
+@dataclass(slots=True)
+class Shop:
+    """Simple shop implementation with inventory and purchase support."""
+
+    inventory: Dict[str, Item]
+
+    @classmethod
+    def default(cls) -> "Shop":
+        return cls(default_shop_stock())
+
+    def list_items(self) -> List[Item]:
+        return list(self.inventory.values())
+
+    def purchase(self, item_name: str, gold: int) -> Item:
+        if item_name not in self.inventory:
+            raise KeyError("Item not carried by shop")
+        item = self.inventory[item_name]
+        if gold < item.value:
+            raise ValueError("Not enough gold to purchase item")
+        self.inventory[item_name].quantity -= 1
+        if self.inventory[item_name].quantity <= 0:
+            del self.inventory[item_name]
+        return item.copy(quantity=1)
+
+
+@dataclass(slots=True)
+class FishingCatch:
+    name: str
+    gold_reward: int
+    xp_reward: int
+
+
+FISHING_TABLE: List[FishingCatch] = [
+    FishingCatch("Minnow", gold_reward=5, xp_reward=10),
+    FishingCatch("River Trout", gold_reward=12, xp_reward=20),
+    FishingCatch("Golden Carp", gold_reward=50, xp_reward=60),
+]
+
+
+def go_fishing(level: int) -> FishingCatch:
+    weights = [0.6, 0.3, 0.1 if level >= 5 else 0.0]
+    catch = random.choices(FISHING_TABLE, weights=weights, k=1)[0]
+    return catch
+

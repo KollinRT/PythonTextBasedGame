@@ -1,210 +1,321 @@
-import random 
+"""Core character classes for the adventure game.
 
-class Player:
-    """
-    class Player:
-    A class to represent a player in the game.
+The original project exposed a couple of loosely connected classes that kept
+their state in module level globals.  For the refactor required by the new
+features we provide a small collection of data classes and helpers that make the
+rest of the codebase easier to reason about.  All entities now keep their state
+locally which makes them reusable both by the text engine and by the pygame
+front-end introduced in this change.
+"""
 
-    ...
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+import random
+from typing import Dict, Iterable, List, Optional
+
+
+@dataclass(slots=True)
+class Item:
+    """Representation of an inventory item.
 
     Attributes
     ----------
-    name : str
-        name of the person.
-    level : int
-        level of the player.
-    hp : int
-        hp of the player
-    dmg : int
-        dmg of the player
-    critDmg : int
-        Critical damage modifier of the player.
-    critChance : int
-        Critical hit chance of the player.
-
-    Methods
-    -------
-    describe():
-        Describes the player's name, level, hp, and damage.
-    takeDamage():
-        Triggered when the player takes damage from environmental triggers.  
-    levelUp():
-        Increases the player's level along with increasing hp and dmg.
-    obtainItem(item):
-        Adds an item to the player's inventory. Must be in a dictionary format 
-        and reference OTHER FUNCTION here for more details.
-    MORE TO TRULY ADD HERE!!!!
-
-
+    name:
+        Human readable name of the item.
+    level:
+        Minimum level required to make use of the item.
+    slot:
+        Slot type (``weapon``, ``armor``, ``shield`` or ``potion``).
+    dmg / hp / mp:
+        Numeric modifiers used by the combat and utility systems.
+    value:
+        Gold value of the item when sold or purchased from the shop.
+    quantity:
+        Stack size for consumables.  Equipment is treated as a quantity of 1.
     """
 
-    inventory = {}
+    name: str
+    level: int = 1
+    slot: str = "misc"
+    dmg: int = 0
+    hp: int = 0
+    mp: int = 0
+    value: int = 0
+    quantity: int = 1
 
-    following = {}
-    
-    expToLevel = [0, 200, 500, 900, 1400, 2000, 2700, 3500, 4400, 5400, 6500, 7700, 9000, 10400, 11900]
+    def copy(self, *, quantity: Optional[int] = None) -> "Item":
+        return Item(
+            name=self.name,
+            level=self.level,
+            slot=self.slot,
+            dmg=self.dmg,
+            hp=self.hp,
+            mp=self.mp,
+            value=self.value,
+            quantity=self.quantity if quantity is None else quantity,
+        )
 
-    levelsAttained = []
 
-    equipment = {}
+@dataclass(slots=True)
+class Spell:
+    name: str
+    level_req: int
+    mp_cost: int
+    damage: int
 
-    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, exp=0, gp=0):
+
+class Player:
+    """Base player class supporting inventory, levelling and combat helpers."""
+
+    exp_to_level: List[int] = [
+        0,
+        200,
+        500,
+        900,
+        1400,
+        2000,
+        2700,
+        3500,
+        4400,
+        5400,
+        6500,
+        7700,
+        9000,
+        10400,
+        11900,
+    ]
+
+    def __init__(
+        self,
+        name: str,
+        level: int,
+        hp: int,
+        dmg: int,
+        *,
+        crit_dmg: float = 1.25,
+        crit_chance: float = 0.1,
+        exp: int = 0,
+        gp: int = 0,
+    ) -> None:
         self.name = name
         self.level = level
+        self.max_hp = hp
         self.hp = hp
         self.dmg = dmg
-        self.critDmg = critDmg  # 1 is default
-        self.critChance = critChance  # 100% default
+        self.crit_dmg = crit_dmg
+        self.crit_chance = crit_chance
         self.exp = exp
-        self.maxHP = hp
         self.gp = gp
+        self.inventory: Dict[str, Item] = {}
+        self.potions: Dict[str, Item] = {}
+        self.equipment: Dict[str, Item] = {}
+        self.following: List[Player] = []
+        self.levels_attained: List[int] = []
 
-    def __str__(self):
-        return (f"{self.name} is a level {self.level} character with {self.hp} that does {self.dmg} damage")
+    # ------------------------------------------------------------------
+    # Basic combat helpers
+    # ------------------------------------------------------------------
+    def is_alive(self) -> bool:
+        return self.hp > 0
 
-    def takeDamage(self):
-        currentHP = self.hp
-        print(f"{self.name} took xxx damage! Down to xxx hp! Current HP is {currentHP}")
+    def take_damage(self, amount: float) -> int:
+        self.hp = max(0, int(self.hp - amount))
+        return self.hp
 
-    def levelUp(self):
+    def heal(self, amount: float) -> int:
+        self.hp = min(self.max_hp, int(self.hp + amount))
+        return self.hp
+
+    def attack_damage(self) -> int:
+        damage = self.dmg
+        if random.random() < self.crit_chance:
+            damage = int(damage * self.crit_dmg)
+        return damage
+
+    def gain_exp(self, amount: int) -> None:
+        self.exp += amount
+        self._process_level_ups()
+
+    def add_gold(self, amount: int) -> None:
+        self.gp += amount
+
+    def spend_gold(self, amount: int) -> None:
+        if amount > self.gp:
+            raise ValueError("Not enough gold")
+        self.gp -= amount
+
+    # ------------------------------------------------------------------
+    # Inventory management
+    # ------------------------------------------------------------------
+    def add_item(self, item: Item, *, to_potions: bool = False) -> None:
+        target = self.potions if (to_potions or item.slot == "potion") else self.inventory
+        stored = target.get(item.name)
+        if stored:
+            stored.quantity += item.quantity
+        else:
+            target[item.name] = item.copy()
+
+    def remove_item(self, name: str, *, from_potions: bool = False) -> None:
+        target = self.potions if from_potions else self.inventory
+        if name not in target:
+            raise KeyError(f"{name} not in inventory")
+        target[name].quantity -= 1
+        if target[name].quantity <= 0:
+            del target[name]
+
+    def sort_inventory(self, *, key: str = "name") -> List[Item]:
+        if key not in {"name", "level", "value"}:
+            raise ValueError("key must be one of 'name', 'level', 'value'")
+        return sorted(self.inventory.values(), key=lambda item: getattr(item, key))
+
+    def use_potion(self, name: str) -> None:
+        if name not in self.potions:
+            raise KeyError(f"Potion {name} not in inventory")
+        potion = self.potions[name]
+        if self.level < potion.level:
+            raise ValueError("Level too low to use potion")
+        self.heal(potion.hp)
+        if hasattr(self, "mp") and potion.mp:
+            self.mp = min(self.max_mp, int(self.mp + potion.mp))
+        self.remove_item(name, from_potions=True)
+
+    # ------------------------------------------------------------------
+    # Levelling
+    # ------------------------------------------------------------------
+    def _process_level_ups(self) -> None:
+        while self.level < len(self.exp_to_level) and self.exp >= self.exp_to_level[self.level]:
+            self._level_up()
+
+    def _level_up(self) -> None:
         self.level += 1
-        self.maxHP += random.randint(0, 11)
-        self.hp += random.randint(0, 11)
-        self.dmg += random.randint(0, 5)
+        self.max_hp += random.randint(2, 8)
+        self.hp = self.max_hp
+        self.dmg += random.randint(1, 4)
 
-    # def movementRestoreHP(self):
-    #     self.hp += 0.1*self.maxHP
+    # ------------------------------------------------------------------
+    # Equipment helpers
+    # ------------------------------------------------------------------
+    def equip_item(self, name: str) -> None:
+        item = self.inventory.get(name)
+        if not item:
+            raise KeyError(f"{name} not in inventory")
+        if self.level < item.level:
+            raise ValueError("Level too low to equip item")
+        previous = self.equipment.get(item.slot)
+        if previous:
+            self.add_item(previous)
+        self.equipment[item.slot] = item.copy(quantity=1)
+        self.remove_item(name)
 
-    def obtainItem(self, item):
-        self.inventory.update(item)
-        # for ease of addition
-
-    def checkInv(self):
-        print(self.inventory)
-
-    def checkEquipped(self):
-        ### Double check that only so much of certain types of equipment is equippment.
-        print(self.equipment)
-
-
-    def equipItem(self):
-        # iterator through items in inventory...
-        for items in self.inventory:
-            if self.level >= self.inventory[items]['level']:
-                pass
-        pass
-
-    def maxHP(self):
-        self.maxHP = self.hp
-
-    def checkLevel(self):
-        for i in range(0,15):
-            if self.exp > self.expToLevel[i]:
-                self.levelsAttained.append(i)
-                if self.level < self.levelsAttained[-1]+1:
-                    print(f"level {i+1}: True")
-                    self.levelUp()
-                    self.level = self.levelsAttained[-1]+1
+    def unequip_item(self, slot: str) -> None:
+        item = self.equipment.pop(slot, None)
+        if item:
+            self.add_item(item)
 
 
 class Enemy(Player):
-    # Maybe fix this!
-    def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500, gpWorth=10, maxHP=10, exp=0):
-        self.name = name
-        self.level = level
-        self.hp = hp
-        self.dmg = dmg
-        self.critDmg = critDmg  # 1 is default
-        self.critChance = critChance  # 100% default
-        self.expWorth = expWorth
-        self.gpWorth = gpWorth
-        self.maxHP = maxHP
-        self.exp = exp
-    
-    def levelUp(self):
-        self.level += 1
-        self.maxHP += random.randint(0, 11)
-        self.hp += random.randint(0, 11)
-        self.dmg += random.randint(0, 5)
-        self.expWorth += 50
-        self.gpWorth += 25
+    """Extension of :class:`Player` tailored for opponents."""
 
-    def supriseAttack(self, name, dmg):
-        print(f"{self.name} got to you first!")
+    def __init__(
+        self,
+        name: str,
+        level: int,
+        hp: int,
+        dmg: int,
+        *,
+        crit_dmg: float = 1.1,
+        crit_chance: float = 0.05,
+        exp_worth: int = 250,
+        gp_worth: int = 10,
+    ) -> None:
+        super().__init__(
+            name,
+            level,
+            hp,
+            dmg,
+            crit_dmg=crit_dmg,
+            crit_chance=crit_chance,
+        )
+        self.exp_worth = exp_worth
+        self.gp_worth = gp_worth
 
-    def regenHP(self):
-        self.hp = self.maxHP
+    def level_up(self) -> None:  # pragma: no cover - enemies are usually spawned at level
+        super()._level_up()
+        self.exp_worth += 50
+        self.gp_worth += 20
 
-# Kinda think about player classes?
+    def decide_target(self, players: Iterable[Player]) -> Player:
+        living = [player for player in players if player.is_alive()]
+        return random.choice(living)
 
-class Mage(Player):    
-    
-    ableToCast = []
-    skills = {'fireball': {'level': 1, 'MPCost': 3, "Damage": 12},
-              'gust': {'level': 5, 'MPCost': 6, "Damage": 22},
-              'blizzard': {'level': 10, 'MPCost': 10, "Damage": 30}}
 
-    
-    def __init__(self, name, level, hp, mp, dmg, critDmg=1.25, critChance=100, exp=0):
-        # not sure if this super init is needed...
-        super().__init__(name, level, hp, dmg, critDmg=1.25, critChance=100)
+class Mage(Player):
+    default_spells: List[Spell] = [
+        Spell("fireball", level_req=1, mp_cost=3, damage=12),
+        Spell("gust", level_req=5, mp_cost=6, damage=22),
+        Spell("blizzard", level_req=10, mp_cost=10, damage=30),
+    ]
+
+    def __init__(
+        self,
+        name: str,
+        level: int,
+        hp: int,
+        mp: int,
+        dmg: int,
+        *,
+        crit_dmg: float = 1.25,
+        crit_chance: float = 0.1,
+        exp: int = 0,
+        gp: int = 0,
+        spells: Optional[Iterable[Spell]] = None,
+    ) -> None:
+        super().__init__(
+            name,
+            level,
+            hp,
+            dmg,
+            crit_dmg=crit_dmg,
+            crit_chance=crit_chance,
+            exp=exp,
+            gp=gp,
+        )
+        self.max_mp = mp
         self.mp = mp
-        self.maxHP = hp
-        self.maxMP = mp
+        base_spells = list(spells) if spells is not None else list(self.default_spells)
+        self.spells: Dict[str, Spell] = {spell.name: spell for spell in base_spells}
 
-    def magicAttack(self, player, enemy):
-        print(f"{self.name} did ")
+    def restore_resources(self, hp_ratio: float = 0.05, mp_ratio: float = 0.3) -> None:
+        self.heal(self.max_hp * hp_ratio)
+        self.mp = min(self.max_mp, int(self.mp + self.max_mp * mp_ratio))
 
-    def checkMP(self):
-        return self.mp
+    def spend_mp(self, amount: int) -> None:
+        if amount > self.mp:
+            raise ValueError("Not enough MP")
+        self.mp -= amount
 
-    def __str__ (self):
-        return (f"{self.name} is a level {self.level} character with {self.hp} hp and {self.mp} mp that does {self.dmg} damage")
+    def available_spells(self) -> List[Spell]:
+        return [spell for spell in self.spells.values() if spell.level_req <= self.level and spell.mp_cost <= self.mp]
 
-    def levelUp(self):
-        self.level += 1
-        self.maxHP += random.randint(0, 6)
-        self.hp += random.randint(0, 6)
-        self.dmg += random.randint(0, 5)
-        self.maxMP += random.randint(0, 6)
-        self.mp += random.randint(0, 6)
+    def cast_spell(self, name: str, target: Enemy) -> int:
+        spell = self.spells.get(name)
+        if not spell:
+            raise KeyError(f"Unknown spell {name}")
+        if spell.level_req > self.level:
+            raise ValueError("Level too low to cast spell")
+        if spell.mp_cost > self.mp:
+            raise ValueError("Not enough MP to cast spell")
+        self.spend_mp(spell.mp_cost)
+        damage = spell.damage
+        if random.random() < self.crit_chance:
+            damage = int(damage * self.crit_dmg)
+        target.take_damage(damage)
+        return damage
 
-#     def chooseSpell(self):
-#         if isinstance(self, Mage):
-#             checkSpellLevels(self)
-#             print("You a mage boo")
-#             # Check level for spell availability
-#             level = self.level
-#             for ability in self.skills:
-#                 levelReq = self.skills[ability]['level']
-# #                 print(f"{list(self.skills)[ability]} has a levelReq of {levelReq}")
-#     #             if mage.level >= levelReq:
-#     #                 print("okay to cast!")
-#         else:
-#             print("You don't have spells!")
-
-    def checkSpellLevels(self):
-        # print("You a mage boo")
-        skills = self.skills
-        for ability in self.skills:
-            # print(f"{ability} has a level requirement of {skills[ability]['level']} ")
-            levelReq = skills[ability]['level']
-            if self.level >= levelReq:
-                # print(f"okay to cast {ability}!")
-                if f"{ability}" not in self.ableToCast:
-                    self.ableToCast.append(ability)
-        return self.ableToCast
-        
-    def chooseSpell(self, spell):
-        if spell in self.ableToCast:
-            # print("Can cast!")
-            return True
-
-    # include mana in their stats!
-    # Include spells at certain levels?
-        # like fireball at level 1, gust at level 5, blizzard at level 10?
-        # Blizzard something to make enemy have a chance to get frozen and lose a turn?
-
-    def maxMP(self):
-        self.maxMP = self.mp
+    def _level_up(self) -> None:
+        super()._level_up()
+        mp_increase = random.randint(2, 6)
+        self.max_mp += mp_increase
+        self.mp = self.max_mp
 

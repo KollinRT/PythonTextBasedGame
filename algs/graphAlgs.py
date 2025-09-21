@@ -1,99 +1,81 @@
-# The directory is in
-import os
-curDir = os.getcwd()
-indexOfDL = curDir.index("Downloads")
-print(f"The directory is {os.getcwd()[indexOfDL:]}")
+"""Minimal graph algorithms used by the project tests."""
+
+from __future__ import annotations
+
+from collections import deque
+from typing import Dict, Hashable, Iterable, List
 
 
-# Start Graph Algorithms here:
-    
-# define a stack
 class Stack:
-    def __init__(self):
-        self.top = None
-        
-    def is_empty(self):
-        return self.top is None
-        
-    def push(self, val):
-        self.top = Node(val, self.top)
-        
-    def pop(self):
-        if self.is_empty():
-            raise RuntimeError('Stack is empty')
-    
-        val = self.top.value
-        self.top = self.top.next
-        return val
-        
+    def __init__(self) -> None:
+        self._items: List[Hashable] = []
+
+    def push(self, value: Hashable) -> None:
+        self._items.append(value)
+
+    def pop(self) -> Hashable:
+        if not self._items:
+            raise RuntimeError("Stack is empty")
+        return self._items.pop()
+
+    def is_empty(self) -> bool:
+        return not self._items
+
+
 class Queue:
-    def __init__(self):
-        self.first = None
-        self.last = None
-        
-    def is_empty(self):
-        return self.first is None
-    
-    def enqueue(self, val):
-        if self.first is None:
-            self.first = self.last = Node(val)
-        else:
-            self.last.next = Node(val)
-            self.last = self.last.next
-            
-    def dequeue(self):
-        if self.is_empty():
-            raise RuntimeError('Queue is empty')
+    def __init__(self) -> None:
+        self._items: deque[Hashable] = deque()
 
-        val = self.first.value
-        self.first = self.first.next
-        return val
-    
-def dfs_search(G,src):
-    marked = {}
-    node_from = {}
-    
+    def enqueue(self, value: Hashable) -> None:
+        self._items.append(value)
+
+    def dequeue(self) -> Hashable:
+        if not self._items:
+            raise RuntimeError("Queue is empty")
+        return self._items.popleft()
+
+    def is_empty(self) -> bool:
+        return not self._items
+
+
+def dfs_search(graph: Dict[Hashable, Iterable[Hashable]], source: Hashable) -> Dict[Hashable, Hashable]:
+    marked: Dict[Hashable, bool] = {source: True}
+    node_from: Dict[Hashable, Hashable] = {}
     stack = Stack()
-    marked[src] = True
-    stack.push(src)
-    
-    while not stack.is_empty():
-        v = stack.pop()
-        for w in G[v]:
-            if not w in marked:
-                node_from[w] = v
-                marked[w] = True
-                stack.push(w)
-        return node_from
+    stack.push(source)
 
-def path_to(node_from, src, target):
-    if not target in node_from:
-        raise ValueError('Unreachable')
-        
-    path = []
-    v = target
-    while v != src:
-        path.append(v)
-        v = node_from[v]
-    
-    path.append(src)
+    while not stack.is_empty():
+        vertex = stack.pop()
+        for neighbor in graph[vertex]:
+            if neighbor not in marked:
+                node_from[neighbor] = vertex
+                marked[neighbor] = True
+                stack.push(neighbor)
+    return node_from
+
+
+def bfs_search(graph: Dict[Hashable, Iterable[Hashable]], source: Hashable) -> Dict[Hashable, Hashable]:
+    marked: Dict[Hashable, bool] = {source: True}
+    node_from: Dict[Hashable, Hashable] = {}
+    queue = Queue()
+    queue.enqueue(source)
+
+    while not queue.is_empty():
+        vertex = queue.dequeue()
+        for neighbor in graph[vertex]:
+            if neighbor not in marked:
+                node_from[neighbor] = vertex
+                marked[neighbor] = True
+                queue.enqueue(neighbor)
+    return node_from
+
+
+def path_to(node_from: Dict[Hashable, Hashable], source: Hashable, target: Hashable) -> List[Hashable]:
+    if target not in node_from and target != source:
+        raise ValueError("Unreachable")
+    path = [target]
+    while path[-1] != source:
+        path.append(node_from[path[-1]])
     path.reverse()
     return path
 
-def bfs_search(G, src):
-    marked = {}
-    node_from = {}
-    
-    q = Queue()
-    marked[src] = True
-    q.enqueue(src)
-    
-    while not q.is_empty():
-        v = q.dequeue()
-        for w in G[v]:
-            if not w in marked:
-                node_from[w] = v
-                marked[w] = True
-                q.enqueue(w)
-    
-    return node_from
