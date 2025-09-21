@@ -7,7 +7,6 @@ Running ``python -m main`` launches the traditional text interface.  The
 from __future__ import annotations
 
 import argparse
-from typing import Iterable
 
 from classes.classes import Mage, Player
 from game_logic.core import GameEngine, startGame
@@ -54,13 +53,20 @@ def _prompt_command(engine: GameEngine) -> bool:
                 return True
             for event in events:
                 if event.kind == "battle":
-                    print(event.payload)
+                    if event.payload:
+                        print(event.payload)
+                    for line in event.details:
+                        print(f"  {line}")
+                    if event.game_over:
+                        return False
                 elif event.kind == "shop":
                     _handle_shop(engine)
                 elif event.kind == "fishing":
                     print(event.payload)
                 elif event.kind == "transition":
                     print(f"Traveled to {event.payload} map")
+                elif event.payload:
+                    print(event.payload)
             return True
     if command.startswith("potion"):
         _, _, potion_name = command.partition(" ")

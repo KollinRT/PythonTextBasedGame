@@ -19,7 +19,7 @@ pygame user interface.
 - **Map transitions** – the beginner map leads into an intermediate area and the
   journey can return back.
 - **Pygame interface** – run the game with a simple graphical overlay that shows
-  status, neighbours and recent events.
+  status, neighbours, recent events and full battle breakdowns.
 
 ## Requirements
 
@@ -36,7 +36,8 @@ python main.py
 ```
 
 Commands are entered as text (for example `move A1`, `potion Basic HP Potion`
-or `quit`).
+or `quit`).  Battles automatically play out and the console prints a full
+summary of every action so you can follow along and react with potions.
 
 ### Pygame mode
 
@@ -44,8 +45,16 @@ or `quit`).
 python main.py --mode pygame
 ```
 
-Use number keys (`1`, `2`, …) to travel to neighbouring nodes and `H` to consume
-the first available potion.  Press `Esc` to exit.
+Use number keys (`1`, `2`, …), the arrow keys or `WASD` to travel to neighbouring
+nodes.  Press `H` to consume the first available potion and `Esc` to exit.  When
+battles trigger their full action log is displayed in the event panel.
+
+### Controls at a glance
+
+- **Text mode** – type `move <node>` to travel, `potion <name>` to heal and
+  `quit` to leave the adventure.
+- **Pygame mode** – move with `1-9`, `WASD` or the arrow keys, press `H` to drink
+  a potion and `Esc` to quit.
 
 ## Project layout
 

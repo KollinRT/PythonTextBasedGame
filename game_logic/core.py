@@ -142,6 +142,8 @@ class Battle:
 class NodeEvent:
     kind: str
     payload: Optional[str] = None
+    details: List[str] = field(default_factory=list)
+    game_over: bool = False
 
 
 class GameEngine:
@@ -193,7 +195,10 @@ class GameEngine:
         events: List[NodeEvent] = []
         if node_data.get("encounter"):
             if self.rng.random() < 0.35:
-                events.append(self._start_battle())
+                battle_event = self._start_battle()
+                events.append(battle_event)
+                if battle_event.game_over:
+                    return events
         if node_data.get("shop"):
             events.append(NodeEvent("shop"))
         if node_data.get("fishing"):
@@ -224,25 +229,41 @@ class GameEngine:
         enemies = self._generate_enemies()
         self.battle = Battle(self.player_party, enemies, rng=self.rng)
         result = self.battle.resolve()
-        self._apply_battle_rewards(result)
-        description = f"Defeated {len(enemies)} enemies" if not any(e.is_alive() for e in enemies) else "Party was defeated"
-        return NodeEvent("battle", payload=description)
+        players_alive = any(player.is_alive() for player in self.player_party)
+        enemies_alive = any(enemy.is_alive() for enemy in enemies)
+        victory = players_alive and not enemies_alive
+        details = self._record_battle_outcome(result, victory=victory)
+        summary = "Party was defeated" if not players_alive else f"Defeated {len(enemies)} enemies"
+        self.event_log.append(summary)
+        self.battle = None
+        return NodeEvent("battle", payload=summary, details=details, game_over=not players_alive)
 
-    def _apply_battle_rewards(self, result: BattleResult) -> None:
+    def _record_battle_outcome(self, result: BattleResult, *, victory: bool) -> List[str]:
+        details: List[str] = []
         if result.events:
-            self.event_log.extend(f"{event.source} -> {event.target}: {event.description}" for event in result.events)
+            details.extend(f"{event.source} -> {event.target}: {event.description}" for event in result.events)
+        if details:
+            self.event_log.extend(details)
+        if not victory:
+            return details
+
         if result.xp_gained:
             for player in self.player_party:
                 player.gain_exp(result.xp_gained)
+            details.append(f"Gained {result.xp_gained} XP")
+            self.event_log.append(f"Gained {result.xp_gained} XP")
         if result.gold_gained:
             for player in self.player_party:
                 player.add_gold(result.gold_gained)
-        if not result.events:
-            return
-        if not any(enemy.is_alive() for enemy in self.battle.enemies):
+            details.append(f"Collected {result.gold_gained} gold")
+            self.event_log.append(f"Collected {result.gold_gained} gold")
+        if self.player_party:
             loot_item = random_loot_drop(max(player.level for player in self.player_party))
             self.player_party[0].add_item(loot_item)
-            self.event_log.append(f"Looted {loot_item.name}")
+            loot_message = f"Looted {loot_item.name}"
+            details.append(loot_message)
+            self.event_log.append(loot_message)
+        return details
 
     # ------------------------------------------------------------------
     # Fishing and shop interactions

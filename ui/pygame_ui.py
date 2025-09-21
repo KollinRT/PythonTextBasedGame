@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pygame
 
+from typing import Iterable
+
 from classes.classes import Mage
 from game_logic.core import GameEngine, startGame
 
@@ -18,6 +20,28 @@ def _render_lines(screen: pygame.Surface, font: pygame.font.Font, lines: list[st
         screen.blit(text, (20, y))
         y += font.get_linesize()
 
+def _apply_node_events(events: Iterable, log: list[str]) -> bool:
+    """Add node events to the on-screen log and return True if the party died."""
+
+    game_over = False
+    for node_event in events:
+        if node_event.kind == "battle":
+            if node_event.payload:
+                log.append(node_event.payload)
+            log.extend(node_event.details)
+            if node_event.game_over:
+                game_over = True
+                log.append("Your party has fallen. Press Esc to exit.")
+        elif node_event.kind == "shop":
+            log.append("Visited a shop (trade in text mode)")
+        elif node_event.kind == "fishing":
+            log.append(node_event.payload or "Fishing result")
+        elif node_event.kind == "transition":
+            log.append(f"Traveled to {node_event.payload}")
+        elif node_event.payload:
+            log.append(node_event.payload)
+    return game_over
+
 
 def run_pygame_ui() -> None:
     pygame.init()
@@ -32,6 +56,7 @@ def run_pygame_ui() -> None:
     log: list[str] = list(engine.event_log)
 
     running = True
+    game_over = False
     while running:
         neighbors = engine.neighbors()
         for event in pygame.event.get():
@@ -40,19 +65,29 @@ def run_pygame_ui() -> None:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-                elif pygame.K_1 <= event.key <= pygame.K_9:
+                elif not game_over and pygame.K_1 <= event.key <= pygame.K_9:
                     index = event.key - pygame.K_1
                     if index < len(neighbors):
                         events = engine.move_to(neighbors[index])
-                        for node_event in events:
-                            if node_event.kind == "battle":
-                                log.append(node_event.payload or "Battle resolved")
-                            elif node_event.kind == "shop":
-                                log.append("Visited a shop (use text mode to trade)")
-                            elif node_event.kind == "fishing":
-                                log.append(node_event.payload or "Fishing result")
-                            elif node_event.kind == "transition":
-                                log.append(f"Traveled to {node_event.payload}")
+                        game_over = _apply_node_events(events, log)
+                    else:
+                        log.append("No path bound to that key")
+                elif not game_over and event.key in {pygame.K_w, pygame.K_UP}:
+                    if neighbors:
+                        events = engine.move_to(neighbors[0])
+                        game_over = _apply_node_events(events, log)
+                elif not game_over and event.key in {pygame.K_d, pygame.K_RIGHT}:
+                    if len(neighbors) >= 2:
+                        events = engine.move_to(neighbors[1])
+                        game_over = _apply_node_events(events, log)
+                elif not game_over and event.key in {pygame.K_s, pygame.K_DOWN}:
+                    if len(neighbors) >= 3:
+                        events = engine.move_to(neighbors[2])
+                        game_over = _apply_node_events(events, log)
+                elif not game_over and event.key in {pygame.K_a, pygame.K_LEFT}:
+                    if len(neighbors) >= 4:
+                        events = engine.move_to(neighbors[3])
+                        game_over = _apply_node_events(events, log)
                 elif event.key == pygame.K_h:
                     # use first available potion
                     potions = list(engine.player_party[0].potions.keys())
@@ -81,6 +116,15 @@ def run_pygame_ui() -> None:
         status_lines.extend([f"  {idx+1}. {node}" for idx, node in enumerate(neighbors)])
         if isinstance(player, Mage):
             status_lines.insert(2, f"MP: {player.mp}/{player.max_mp}")
+        status_lines.extend(
+            [
+                "",
+                "Controls:",
+                "  1-9 or WASD/Arrow keys to travel",
+                "  H to drink the first potion",
+                "  Esc to leave the adventure",
+            ]
+        )
 
         _render_lines(screen, font, status_lines, 20)
 
