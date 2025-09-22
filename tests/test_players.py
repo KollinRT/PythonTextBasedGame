@@ -44,9 +44,18 @@ def test_ranger_abilities_consume_focus():
 def test_cleric_spells_available_by_level():
     cleric = Cleric("Healer", 1, 90, 45, 10)
     spells = [spell.name for spell in cleric.available_spells()]
+    assert "healing prayer" in spells
     assert "smite" in spells
     assert "radiance" not in spells
     cleric.level = 5
     cleric.mp = cleric.max_mp
     spells = [spell.name for spell in cleric.available_spells()]
     assert "radiance" in spells
+
+
+def test_cleric_healing_spell_restores_hp():
+    cleric = Cleric("Healer", 1, 90, 45, 10)
+    cleric.take_damage(40)
+    healed = cleric.cast_spell("healing prayer")
+    assert healed > 0
+    assert cleric.hp > cleric.max_hp - 40

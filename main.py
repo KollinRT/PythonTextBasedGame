@@ -96,7 +96,10 @@ def _print_battle_state(engine: GameEngine) -> None:
         for idx, (kind, name) in enumerate(actions, 1):
             label = kind if not name else f"{kind} {name}"
             print(f"  {idx}. {label}")
-    print("Use 'attack', 'spell <name>', 'ability <name>' or select an action number. Optional <target> selects an enemy.")
+    print(
+        "Use 'attack', 'spell <name>', 'ability <name>' or select an action number. "
+        "Optional <target> selects an enemy; healing spells restore the caster."
+    )
     print("Use 'potion <name>' to consume a potion.")
 
 

@@ -14,7 +14,8 @@ pygame user interface.
   and turn-based battles let you choose between attacks, spells, abilities and
   potions each round.
 - **Class variety** – begin as a stalwart player, arcane mage, agile ranger or
-  supportive cleric, each with distinct stats and abilities.
+  supportive cleric (who now opens with the restorative Healing Prayer spell),
+  each with distinct stats and abilities.
 - **Inventory & potions** – players can equip weapons and armor, purchase items
   from shops, and consume potions that restore HP/MP.
 - **Fishing mini-game** – stepping on fishing tiles triggers a catch with gold
@@ -41,7 +42,9 @@ python main.py
 Commands are entered as text (for example `move A1`, `potion Basic HP Potion`
 or `quit`).  When a battle starts you decide every action: `attack`,
 `spell fireball`, `ability power shot` or `potion Major HP Potion`.  Append an
-enemy number (e.g. `attack 2`) to focus a specific target.
+enemy number (e.g. `attack 2`) to focus a specific target – healing spells such
+as the cleric's Healing Prayer automatically restore the caster without needing
+an enemy selection.
 
 ### Pygame mode
 
@@ -53,6 +56,8 @@ Use number keys (`1`, `2`, …), the arrow keys or `WASD` to travel to neighbour
 nodes.  Press `H` to consume the first available potion and `Esc` to exit.  In
 battle, use the arrow keys or `A`/`D` to choose a target, number keys to trigger
 attacks, spells or abilities, and `H` to drink a potion while enemies counter.
+Healing spells automatically apply to the caster so you can focus on defence or
+offence without swapping target selection.
 
 ### Controls at a glance
 

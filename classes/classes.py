@@ -62,7 +62,8 @@ class Spell:
     name: str
     level_req: int
     mp_cost: int
-    damage: int
+    damage: int = 0
+    healing: int = 0
 
 
 class Player:
@@ -298,7 +299,7 @@ class Mage(Player):
     def available_spells(self) -> List[Spell]:
         return [spell for spell in self.spells.values() if spell.level_req <= self.level and spell.mp_cost <= self.mp]
 
-    def cast_spell(self, name: str, target: Enemy) -> int:
+    def cast_spell(self, name: str, target: Player | Enemy | None = None) -> int:
         spell = self.spells.get(name)
         if not spell:
             raise KeyError(f"Unknown spell {name}")
@@ -307,6 +308,14 @@ class Mage(Player):
         if spell.mp_cost > self.mp:
             raise ValueError("Not enough MP to cast spell")
         self.spend_mp(spell.mp_cost)
+        if spell.healing > 0:
+            # Healing spells default to restoring the caster if no explicit target
+            ally = target if isinstance(target, Player) else self
+            before = ally.hp
+            ally.heal(spell.healing)
+            return ally.hp - before
+        if not isinstance(target, Enemy):
+            raise ValueError("A damage spell requires an enemy target")
         damage = spell.damage
         if random.random() < self.crit_chance:
             damage = int(damage * self.crit_dmg)
@@ -395,6 +404,7 @@ class Cleric(Mage):
     """Holy spellcaster with restorative-oriented spell list."""
 
     default_spells: List[Spell] = [
+        Spell("healing prayer", level_req=1, mp_cost=6, healing=32),
         Spell("smite", level_req=1, mp_cost=4, damage=14),
         Spell("radiance", level_req=4, mp_cost=6, damage=20),
         Spell("divine storm", level_req=8, mp_cost=10, damage=32),

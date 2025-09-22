@@ -102,8 +102,21 @@ class Battle:
         target = living_enemies[target_index]
 
         if kind == "spell" and isinstance(player, Mage) and name:
-            damage = player.cast_spell(name, target)
-            description = f"casts {name} for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+            spell = player.spells.get(name)
+            if spell and getattr(spell, "healing", 0) > 0:
+                healed = player.cast_spell(name, player)
+                description = (
+                    f"casts {name} restoring {healed} HP "
+                    f"({player.hp}/{player.max_hp} HP)"
+                )
+                target = player
+            else:
+                if not living_enemies:
+                    return
+                target_index = max(0, min(target_index, len(living_enemies) - 1))
+                target = living_enemies[target_index]
+                damage = player.cast_spell(name, target)
+                description = f"casts {name} for {damage} damage ({target.hp}/{target.max_hp} HP left)"
         elif kind == "ability" and hasattr(player, "use_ability") and name:
             damage, extra = player.use_ability(name, target)  # type: ignore[attr-defined]
             description = f"{extra} ({target.hp}/{target.max_hp} HP left)"
