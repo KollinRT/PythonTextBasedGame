@@ -14,7 +14,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from classes.classes import Enemy, Mage, Player
+from classes.classes import Cleric, Enemy, Mage, Player, Ranger, Item
 from game_logic.simple_graph import Graph
 from items.items import FishingCatch, Shop, go_fishing, random_loot_drop
 from maps.beginner_map import create_beginner_map
@@ -76,12 +76,16 @@ class Battle:
     def _living_enemies(self) -> List[Enemy]:
         return [enemy for enemy in self.enemies if enemy.is_alive()]
 
-    def player_action(self, player: Player, action: Tuple[str, Optional[str], Optional[int]] | None = None) -> None:
+    def player_action(
+        self,
+        player: Player,
+        action: Tuple[str, Optional[str], Optional[int]] | None = None,
+    ) -> Optional[BattleEvent]:
         """Execute a player's action.
 
-        ``action`` is a tuple ``(kind, spell_name, target_index)`` where ``kind`` is
-        either ``"attack"`` or ``"spell"``.  When ``action`` is ``None`` the player
-        performs a default basic attack against the first living enemy.
+        ``action`` is a tuple ``(kind, name, target_index)`` where ``kind`` is one of
+        ``"attack"``, ``"spell"`` or ``"ability"``.  When ``action`` is ``None`` the
+        player performs a default basic attack against the first living enemy.
         """
 
         if not player.is_alive():
@@ -90,36 +94,46 @@ class Battle:
         if not living_enemies:
             return
         kind = "attack"
-        spell_name: Optional[str] = None
+        name: Optional[str] = None
         target_index = 0
         if action:
-            kind, spell_name, target_index = action
+            kind, name, target_index = action
         target_index = max(0, min(target_index if target_index is not None else 0, len(living_enemies) - 1))
         target = living_enemies[target_index]
 
-        if kind == "spell" and isinstance(player, Mage) and spell_name:
-            damage = player.cast_spell(spell_name, target)
-            description = f"casts {spell_name} for {damage} damage"
+        if kind == "spell" and isinstance(player, Mage) and name:
+            damage = player.cast_spell(name, target)
+            description = f"casts {name} for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+        elif kind == "ability" and hasattr(player, "use_ability") and name:
+            damage, extra = player.use_ability(name, target)  # type: ignore[attr-defined]
+            description = f"{extra} ({target.hp}/{target.max_hp} HP left)"
         else:
             damage = player.attack_damage()
             target.take_damage(damage)
-            description = f"attacks for {damage} damage"
-        self.events.append(BattleEvent(player.name, target.name, description))
+            description = f"attacks for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+        event = BattleEvent(player.name, target.name, description)
+        self.events.append(event)
+        return event
 
-    def enemy_turn(self) -> None:
+    def enemy_turn(self) -> List[BattleEvent]:
+        events: List[BattleEvent] = []
         for enemy in self._living_enemies():
             players = self._living_players()
             if not players:
-                return
+                break
             target = enemy.decide_target(players)
             damage = enemy.attack_damage()
             target.take_damage(damage)
-            self.events.append(BattleEvent(enemy.name, target.name, f"attacks for {damage} damage"))
+            description = f"attacks for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+            event = BattleEvent(enemy.name, target.name, description)
+            self.events.append(event)
+            events.append(event)
+        return events
 
     def resolve(self, player_actions: Optional[Dict[str, Tuple[str, Optional[str], Optional[int]]]] = None) -> BattleResult:
         """Resolve the battle until one side is defeated."""
 
-        result = BattleResult(events=self.events)
+        result = BattleResult(events=list(self.events))
         while not self.is_over():
             for player in self.players:
                 action = None
@@ -136,6 +150,14 @@ class Battle:
             return result
         else:
             return result
+
+    def build_result(self) -> BattleResult:
+        result = BattleResult(events=list(self.events))
+        if not any(enemy.is_alive() for enemy in self.enemies):
+            for enemy in self.enemies:
+                result.xp_gained += enemy.exp_worth
+                result.gold_gained += enemy.gp_worth
+        return result
 
 
 @dataclass
@@ -164,6 +186,33 @@ class GameEngine:
         self.battle: Optional[Battle] = None
 
     # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def in_battle(self) -> bool:
+        return self.battle is not None
+
+    def _format_event(self, event: BattleEvent) -> str:
+        return f"{event.source} -> {event.target}: {event.description}"
+
+    def _format_enemy_status(self, index: int, enemy: Enemy) -> str:
+        status = "defeated" if not enemy.is_alive() else f"{enemy.hp}/{enemy.max_hp} HP"
+        return f"{index}. {enemy.name} - {status}"
+
+    def list_player_actions(self) -> List[Tuple[str, Optional[str]]]:
+        if not self.player_party:
+            return []
+        player = next((member for member in self.player_party if member.is_alive()), None)
+        if not player:
+            return []
+        actions: List[Tuple[str, Optional[str]]] = [("attack", None)]
+        if isinstance(player, Mage):
+            actions.extend(("spell", spell.name) for spell in player.available_spells())
+        if hasattr(player, "available_abilities"):
+            abilities = player.available_abilities()  # type: ignore[attr-defined]
+            actions.extend(("ability", ability) for ability in abilities)
+        return actions
+
+    # ------------------------------------------------------------------
     # Game setup
     # ------------------------------------------------------------------
     def start_new_game(self, player: Player) -> None:
@@ -181,6 +230,8 @@ class GameEngine:
         return list(self.active_map.neighbors(self.current_node))
 
     def move_to(self, node: str) -> List[NodeEvent]:
+        if self.battle:
+            raise RuntimeError("Cannot move while a battle is active")
         if node not in self.neighbors():
             raise ValueError(f"Cannot move to {node} from {self.current_node}")
         self.current_node = node
@@ -197,8 +248,7 @@ class GameEngine:
             if self.rng.random() < 0.35:
                 battle_event = self._start_battle()
                 events.append(battle_event)
-                if battle_event.game_over:
-                    return events
+                return events
         if node_data.get("shop"):
             events.append(NodeEvent("shop"))
         if node_data.get("fishing"):
@@ -227,23 +277,102 @@ class GameEngine:
 
     def _start_battle(self) -> NodeEvent:
         enemies = self._generate_enemies()
+        for player in self.player_party:
+            if isinstance(player, Ranger):
+                player.reset_focus()
         self.battle = Battle(self.player_party, enemies, rng=self.rng)
-        result = self.battle.resolve()
+        summary = "Encountered " + ", ".join(enemy.name for enemy in enemies)
+        details = [self._format_enemy_status(idx, enemy) for idx, enemy in enumerate(enemies, 1)]
+        self.event_log.append(summary)
+        return NodeEvent("battle", payload=summary, details=details)
+
+    def perform_player_action(
+        self,
+        action: str,
+        *,
+        target_index: int = 0,
+        name: Optional[str] = None,
+    ) -> NodeEvent:
+        if not self.battle:
+            raise RuntimeError("No active battle")
+        player = next((member for member in self.player_party if member.is_alive()), None)
+        if not player:
+            raise RuntimeError("All party members are down")
+        battle = self.battle
+        events: List[BattleEvent] = []
+
+        action = action.lower()
+
+        if action == "potion":
+            if not name:
+                raise ValueError("Potion name required")
+            player.use_potion(name)
+            description = f"uses {name} ({player.hp}/{player.max_hp} HP)"
+            if isinstance(player, Mage):
+                description += f" ({player.mp}/{player.max_mp} MP)"
+            event = BattleEvent(player.name, player.name, description)
+            battle.events.append(event)
+            events.append(event)
+        else:
+            living_enemies = battle._living_enemies()
+            if not living_enemies:
+                return self._finalize_battle(events)
+            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            if action == "spell" and not isinstance(player, Mage):
+                raise ValueError("This character cannot cast spells")
+            if action == "ability" and not hasattr(player, "use_ability"):
+                raise ValueError("No abilities available")
+            normalized_name = name.lower() if name else None
+            descriptor = (action, normalized_name, target_index)
+            event = battle.player_action(player, descriptor)
+            if event:
+                events.append(event)
+
+        if battle.is_over():
+            return self._finalize_battle(events)
+
+        enemy_events = battle.enemy_turn()
+        events.extend(enemy_events)
+        if battle.is_over():
+            return self._finalize_battle(events)
+
+        details = [self._format_event(evt) for evt in events]
+        if details:
+            self.event_log.extend(details)
+        return NodeEvent("battle", payload="Battle continues", details=details)
+
+    def _finalize_battle(self, round_events: List[BattleEvent]) -> NodeEvent:
+        if not self.battle:
+            raise RuntimeError("No battle to finalize")
+        battle = self.battle
+        event_lines = [self._format_event(event) for event in round_events]
+        if event_lines:
+            self.event_log.extend(event_lines)
+        result = battle.build_result()
         players_alive = any(player.is_alive() for player in self.player_party)
-        enemies_alive = any(enemy.is_alive() for enemy in enemies)
+        enemies_alive = any(enemy.is_alive() for enemy in battle.enemies)
         victory = players_alive and not enemies_alive
-        details = self._record_battle_outcome(result, victory=victory)
-        summary = "Party was defeated" if not players_alive else f"Defeated {len(enemies)} enemies"
+        details = self._record_battle_outcome(result, victory=victory, recent_events=event_lines)
+        summary = "Party was defeated" if not players_alive else f"Defeated {len(battle.enemies)} enemies"
         self.event_log.append(summary)
         self.battle = None
         return NodeEvent("battle", payload=summary, details=details, game_over=not players_alive)
 
-    def _record_battle_outcome(self, result: BattleResult, *, victory: bool) -> List[str]:
+    def _record_battle_outcome(
+        self,
+        result: BattleResult,
+        *,
+        victory: bool,
+        recent_events: Optional[List[str]] = None,
+    ) -> List[str]:
         details: List[str] = []
-        if result.events:
-            details.extend(f"{event.source} -> {event.target}: {event.description}" for event in result.events)
-        if details:
-            self.event_log.extend(details)
+        if recent_events:
+            details.extend(recent_events)
+        elif result.events:
+            event_lines = [self._format_event(event) for event in result.events]
+            details.extend(event_lines)
+            if event_lines:
+                self.event_log.extend(event_lines)
         if not victory:
             return details
 
@@ -302,6 +431,10 @@ def startGame(player_name: str, player_class: str) -> Player:
 
     player_class = player_class.lower()
     if player_class == "mage":
-        return Mage(player_name, 1, 100, 40, 12)
+        return Mage(player_name, 1, 90, 45, 12)
+    if player_class == "ranger":
+        return Ranger(player_name, 1, 110, 14)
+    if player_class == "cleric":
+        return Cleric(player_name, 1, 95, 50, 11)
     return Player(player_name, 1, 120, 15)
 

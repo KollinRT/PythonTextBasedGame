@@ -10,8 +10,11 @@ pygame user interface.
 - **Flexible game engine** – the `GameEngine` class coordinates movement,
   encounters, inventory and shops in a way that can be reused by different
   front-ends.
-- **Multiple enemies** – encounters spawn one to three enemies with automatic
-  resolution handled by the `Battle` class.
+- **Multiple enemies & tactical combat** – encounters spawn one to three enemies
+  and turn-based battles let you choose between attacks, spells, abilities and
+  potions each round.
+- **Class variety** – begin as a stalwart player, arcane mage, agile ranger or
+  supportive cleric, each with distinct stats and abilities.
 - **Inventory & potions** – players can equip weapons and armor, purchase items
   from shops, and consume potions that restore HP/MP.
 - **Fishing mini-game** – stepping on fishing tiles triggers a catch with gold
@@ -36,8 +39,9 @@ python main.py
 ```
 
 Commands are entered as text (for example `move A1`, `potion Basic HP Potion`
-or `quit`).  Battles automatically play out and the console prints a full
-summary of every action so you can follow along and react with potions.
+or `quit`).  When a battle starts you decide every action: `attack`,
+`spell fireball`, `ability power shot` or `potion Major HP Potion`.  Append an
+enemy number (e.g. `attack 2`) to focus a specific target.
 
 ### Pygame mode
 
@@ -46,15 +50,18 @@ python main.py --mode pygame
 ```
 
 Use number keys (`1`, `2`, …), the arrow keys or `WASD` to travel to neighbouring
-nodes.  Press `H` to consume the first available potion and `Esc` to exit.  When
-battles trigger their full action log is displayed in the event panel.
+nodes.  Press `H` to consume the first available potion and `Esc` to exit.  In
+battle, use the arrow keys or `A`/`D` to choose a target, number keys to trigger
+attacks, spells or abilities, and `H` to drink a potion while enemies counter.
 
 ### Controls at a glance
 
-- **Text mode** – type `move <node>` to travel, `potion <name>` to heal and
+- **Text mode** – type `move <node>` to travel, issue battle commands such as
+  `attack`, `spell <name>` or `ability <name>`, use `potion <name>` to heal and
   `quit` to leave the adventure.
-- **Pygame mode** – move with `1-9`, `WASD` or the arrow keys, press `H` to drink
-  a potion and `Esc` to quit.
+- **Pygame mode** – move with `1-9`, `WASD` or the arrow keys when exploring.
+  During battles use the arrow keys/A-D to select an enemy, `1-9` to perform
+  actions, `H` to drink the first potion and `Esc` to quit.
 
 ## Project layout
 

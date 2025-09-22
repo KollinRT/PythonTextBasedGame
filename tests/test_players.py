@@ -1,4 +1,4 @@
-from classes.classes import Item, Mage, Player
+from classes.classes import Cleric, Enemy, Item, Mage, Player, Ranger
 from classes.items import HealingItems
 
 
@@ -28,3 +28,25 @@ def test_healing_item_helper():
     item.healPlayer(mage)
     assert mage.hp == mage.max_hp - 5
     assert mage.mp == 15
+
+
+def test_ranger_abilities_consume_focus():
+    ranger = Ranger("Archer", 5, 110, 18, focus=3)
+    abilities = ranger.available_abilities()
+    assert "power shot" in abilities
+    assert "twin strike" in abilities
+    damage, description = ranger.use_ability("power shot", Enemy("Dummy", 1, 80, 5))
+    assert damage >= ranger.dmg  # ability hits harder than base attack
+    assert "Power Shot" in description
+    assert ranger.focus == 2
+
+
+def test_cleric_spells_available_by_level():
+    cleric = Cleric("Healer", 1, 90, 45, 10)
+    spells = [spell.name for spell in cleric.available_spells()]
+    assert "smite" in spells
+    assert "radiance" not in spells
+    cleric.level = 5
+    cleric.mp = cleric.max_mp
+    spells = [spell.name for spell in cleric.available_spells()]
+    assert "radiance" in spells

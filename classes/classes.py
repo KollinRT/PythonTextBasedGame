@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import random
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 
 @dataclass(slots=True)
@@ -319,3 +319,83 @@ class Mage(Player):
         self.max_mp += mp_increase
         self.mp = self.max_mp
 
+
+class Ranger(Player):
+    """Agile ranged fighter with a focus resource for abilities."""
+
+    def __init__(
+        self,
+        name: str,
+        level: int,
+        hp: int,
+        dmg: int,
+        *,
+        crit_dmg: float = 1.5,
+        crit_chance: float = 0.18,
+        exp: int = 0,
+        gp: int = 0,
+        focus: int = 2,
+    ) -> None:
+        super().__init__(
+            name,
+            level,
+            hp,
+            dmg,
+            crit_dmg=crit_dmg,
+            crit_chance=crit_chance,
+            exp=exp,
+            gp=gp,
+        )
+        self.max_focus = focus
+        self.focus = focus
+
+    def reset_focus(self) -> None:
+        self.focus = self.max_focus
+
+    def available_abilities(self) -> List[str]:
+        abilities: List[str] = []
+        if self.focus >= 1:
+            abilities.append("power shot")
+        if self.focus >= 2 and self.level >= 5:
+            abilities.append("twin strike")
+        return abilities
+
+    def use_ability(self, name: str, target: Enemy) -> Tuple[int, str]:
+        ability = name.lower()
+        if ability == "power shot":
+            if self.focus < 1:
+                raise ValueError("Not enough focus to use power shot")
+            self.focus -= 1
+            damage = int(self.dmg * 1.5)
+            if random.random() < self.crit_chance:
+                damage = int(damage * self.crit_dmg)
+            target.take_damage(damage)
+            return damage, f"uses Power Shot for {damage} damage"
+        if ability == "twin strike":
+            if self.level < 5:
+                raise ValueError("Level too low to use twin strike")
+            if self.focus < 2:
+                raise ValueError("Not enough focus to use twin strike")
+            self.focus -= 2
+            first = self.attack_damage()
+            second = self.attack_damage()
+            total = first + second
+            target.take_damage(total)
+            return total, f"unleashes Twin Strike for {total} total damage"
+        raise KeyError(f"Unknown ability {name}")
+
+    def _level_up(self) -> None:
+        super()._level_up()
+        if self.level % 3 == 0:
+            self.max_focus += 1
+        self.focus = self.max_focus
+
+
+class Cleric(Mage):
+    """Holy spellcaster with restorative-oriented spell list."""
+
+    default_spells: List[Spell] = [
+        Spell("smite", level_req=1, mp_cost=4, damage=14),
+        Spell("radiance", level_req=4, mp_cost=6, damage=20),
+        Spell("divine storm", level_req=8, mp_cost=10, damage=32),
+    ]

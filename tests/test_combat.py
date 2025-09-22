@@ -1,6 +1,6 @@
 import random
 
-from classes.classes import Enemy, Mage, Player
+from classes.classes import Enemy, Item, Mage, Player
 from game_logic.core import Battle, GameEngine, NodeEvent, dealDamage, roll
 
 
@@ -26,25 +26,60 @@ def test_battle_handles_multiple_enemies():
     assert result.xp_gained > 0
 
 
-def test_battle_event_includes_details_and_rewards(monkeypatch):
+def test_start_battle_creates_active_battle(monkeypatch):
     engine = GameEngine(rng=random.Random(1))
-    hero = Player("Hero", 1, 200, 40)
+    hero = Player("Hero", 1, 120, 20)
     engine.start_new_game(hero)
 
-    def fake_generate_enemies():
-        return [Enemy("Goblin", 1, 40, 1, exp_worth=120, gp_worth=15)]
+    enemies = [Enemy("Goblin", 1, 50, 5), Enemy("Goblin Chief", 2, 60, 7)]
+    monkeypatch.setattr(engine, "_generate_enemies", lambda: enemies)
 
-    monkeypatch.setattr(engine, "_generate_enemies", fake_generate_enemies)
     event = engine._start_battle()
+    assert engine.in_battle()
     assert event.kind == "battle"
+    assert event.payload.startswith("Encountered")
+    assert len(event.details) == len(enemies)
+
+
+def test_perform_player_action_attack_awards_victory(monkeypatch):
+    engine = GameEngine(rng=random.Random(2))
+    hero = Player("Hero", 1, 150, 35)
+    engine.start_new_game(hero)
+
+    enemy = Enemy("Goblin", 1, 20, 1, exp_worth=80, gp_worth=12)
+    monkeypatch.setattr(engine, "_generate_enemies", lambda: [enemy])
+    engine._start_battle()
+
+    event = engine.perform_player_action("attack")
     assert event.payload.startswith("Defeated")
-    assert any(line.startswith("Hero") for line in event.details)
-    assert any("Gained" in line for line in event.details)
-    assert hero.exp >= 120
-    assert hero.gp >= 15
+    assert any("Hero" in line for line in event.details)
+    assert hero.exp >= 80
+    assert hero.gp >= 12
+    assert not engine.in_battle()
 
 
-def test_handle_node_stops_after_defeat(monkeypatch):
+def test_perform_player_action_potion_triggers_enemy_turn(monkeypatch):
+    engine = GameEngine(rng=random.Random(3))
+    hero = Player("Hero", 1, 120, 10)
+    engine.start_new_game(hero)
+    potion = Item("Basic HP Potion", level=1, slot="potion", hp=30)
+    hero.potions[potion.name] = potion
+    hero.take_damage(40)
+
+    enemy = Enemy("Goblin", 1, 45, 6, exp_worth=40, gp_worth=5)
+    monkeypatch.setattr(engine, "_generate_enemies", lambda: [enemy])
+    engine._start_battle()
+
+    event = engine.perform_player_action("potion", name="Basic HP Potion")
+    assert event.payload == "Battle continues"
+    assert any("uses Basic HP Potion" in line for line in event.details)
+    assert any("Goblin" in line for line in event.details)
+    assert "Basic HP Potion" not in hero.potions
+    assert hero.hp > 80
+
+
+
+def test_handle_node_stops_for_battle(monkeypatch):
     engine = GameEngine(rng=random.Random(2))
     hero = Player("Hero", 1, 100, 10)
     engine.start_new_game(hero)
@@ -52,7 +87,7 @@ def test_handle_node_stops_after_defeat(monkeypatch):
     engine.active_map.nodes[node]["encounter"] = True
     engine.active_map.nodes[node]["shop"] = True
     engine.active_map.nodes[node]["fishing"] = True
-    battle_event = NodeEvent("battle", payload="Party was defeated", game_over=True)
+    battle_event = NodeEvent("battle", payload="Encountered test", game_over=False)
     monkeypatch.setattr(engine, "_start_battle", lambda: battle_event)
     monkeypatch.setattr(engine.rng, "random", lambda: 0.0)
     events = engine._handle_node()

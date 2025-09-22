@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pygame
 
-from typing import Iterable
+from typing import Iterable, List, Optional, Tuple
 
 from classes.classes import Mage
 from game_logic.core import GameEngine, startGame
@@ -57,52 +57,119 @@ def run_pygame_ui() -> None:
 
     running = True
     game_over = False
+    selected_enemy = 0
+
+    def living_enemy_indices() -> List[int]:
+        if not engine.battle:
+            return []
+        return [idx for idx, enemy in enumerate(engine.battle.enemies) if enemy.is_alive()]
+
     while running:
-        neighbors = engine.neighbors()
+        neighbors = engine.neighbors() if not engine.in_battle() else []
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-                elif not game_over and pygame.K_1 <= event.key <= pygame.K_9:
-                    index = event.key - pygame.K_1
-                    if index < len(neighbors):
-                        events = engine.move_to(neighbors[index])
-                        game_over = _apply_node_events(events, log)
-                    else:
-                        log.append("No path bound to that key")
-                elif not game_over and event.key in {pygame.K_w, pygame.K_UP}:
-                    if neighbors:
-                        events = engine.move_to(neighbors[0])
-                        game_over = _apply_node_events(events, log)
-                elif not game_over and event.key in {pygame.K_d, pygame.K_RIGHT}:
-                    if len(neighbors) >= 2:
-                        events = engine.move_to(neighbors[1])
-                        game_over = _apply_node_events(events, log)
-                elif not game_over and event.key in {pygame.K_s, pygame.K_DOWN}:
-                    if len(neighbors) >= 3:
-                        events = engine.move_to(neighbors[2])
-                        game_over = _apply_node_events(events, log)
-                elif not game_over and event.key in {pygame.K_a, pygame.K_LEFT}:
-                    if len(neighbors) >= 4:
-                        events = engine.move_to(neighbors[3])
-                        game_over = _apply_node_events(events, log)
-                elif event.key == pygame.K_h:
-                    # use first available potion
-                    potions = list(engine.player_party[0].potions.keys())
-                    if potions:
-                        try:
-                            engine.player_party[0].use_potion(potions[0])
-                            log.append(f"Used {potions[0]}")
-                        except ValueError:
-                            log.append("Cannot use potion yet")
-                elif event.key == pygame.K_m and isinstance(player, Mage):
-                    available = player.available_spells()
-                    if available:
-                        log.append(
-                            f"Spells ready: {', '.join(spell.name for spell in available)} (cast during battles in text mode)"
-                        )
+                elif game_over:
+                    continue
+                elif engine.in_battle():
+                    actions: List[Tuple[str, Optional[str]]] = engine.list_player_actions()
+                    living = living_enemy_indices()
+                    if event.key in {pygame.K_a, pygame.K_LEFT}:
+                        if living:
+                            if selected_enemy not in living:
+                                selected_enemy = living[0]
+                            else:
+                                pos = living.index(selected_enemy)
+                                selected_enemy = living[(pos - 1) % len(living)]
+                    elif event.key in {pygame.K_d, pygame.K_RIGHT}:
+                        if living:
+                            if selected_enemy not in living:
+                                selected_enemy = living[0]
+                            else:
+                                pos = living.index(selected_enemy)
+                                selected_enemy = living[(pos + 1) % len(living)]
+                    elif pygame.K_1 <= event.key <= pygame.K_9:
+                        index = event.key - pygame.K_1
+                        if index < len(actions):
+                            kind, name = actions[index]
+                            try:
+                                battle_event = engine.perform_player_action(kind, target_index=selected_enemy, name=name)
+                            except (ValueError, KeyError) as exc:
+                                log.append(str(exc))
+                                continue
+                            game_over = _apply_node_events([battle_event], log)
+                            if not engine.in_battle():
+                                selected_enemy = 0
+                        else:
+                            log.append("No action bound to that key")
+                    elif event.key == pygame.K_h:
+                        potions = list(engine.player_party[0].potions.keys())
+                        if potions:
+                            try:
+                                battle_event = engine.perform_player_action("potion", name=potions[0])
+                            except (ValueError, KeyError) as exc:
+                                log.append(str(exc))
+                                continue
+                            game_over = _apply_node_events([battle_event], log)
+                            if not engine.in_battle():
+                                selected_enemy = 0
+                        else:
+                            log.append("No potions available")
+                else:
+                    if pygame.K_1 <= event.key <= pygame.K_9:
+                        index = event.key - pygame.K_1
+                        if index < len(neighbors):
+                            events = engine.move_to(neighbors[index])
+                            game_over = _apply_node_events(events, log)
+                            if engine.in_battle():
+                                selected_enemy = 0
+                        else:
+                            log.append("No path bound to that key")
+                    elif event.key in {pygame.K_w, pygame.K_UP}:
+                        if neighbors:
+                            events = engine.move_to(neighbors[0])
+                            game_over = _apply_node_events(events, log)
+                            if engine.in_battle():
+                                selected_enemy = 0
+                    elif event.key in {pygame.K_d, pygame.K_RIGHT}:
+                        if len(neighbors) >= 2:
+                            events = engine.move_to(neighbors[1])
+                            game_over = _apply_node_events(events, log)
+                            if engine.in_battle():
+                                selected_enemy = 0
+                    elif event.key in {pygame.K_s, pygame.K_DOWN}:
+                        if len(neighbors) >= 3:
+                            events = engine.move_to(neighbors[2])
+                            game_over = _apply_node_events(events, log)
+                            if engine.in_battle():
+                                selected_enemy = 0
+                    elif event.key in {pygame.K_a, pygame.K_LEFT}:
+                        if len(neighbors) >= 4:
+                            events = engine.move_to(neighbors[3])
+                            game_over = _apply_node_events(events, log)
+                            if engine.in_battle():
+                                selected_enemy = 0
+                    elif event.key == pygame.K_h:
+                        potions = list(engine.player_party[0].potions.keys())
+                        if potions:
+                            try:
+                                engine.player_party[0].use_potion(potions[0])
+                                log.append(f"Used {potions[0]}")
+                            except ValueError:
+                                log.append("Cannot use potion yet")
+                        else:
+                            log.append("No potions available")
+                    elif event.key == pygame.K_m and isinstance(player, Mage):
+                        available = player.available_spells()
+                        if available:
+                            log.append(
+                                "Spells ready: "
+                                + ", ".join(spell.name for spell in available)
+                                + " (use number keys during battle)"
+                            )
 
         log = log[-12:]
         screen.fill(BACKGROUND)
@@ -111,20 +178,46 @@ def run_pygame_ui() -> None:
             f"Location: {engine.current_node} ({engine.current_map_key})",
             f"HP: {player.hp}/{player.max_hp}",
             f"Level: {player.level}  EXP: {player.exp}  Gold: {player.gp}",
-            "Neighbors:",
         ]
-        status_lines.extend([f"  {idx+1}. {node}" for idx, node in enumerate(neighbors)])
         if isinstance(player, Mage):
             status_lines.insert(2, f"MP: {player.mp}/{player.max_mp}")
-        status_lines.extend(
-            [
-                "",
-                "Controls:",
-                "  1-9 or WASD/Arrow keys to travel",
-                "  H to drink the first potion",
-                "  Esc to leave the adventure",
-            ]
-        )
+
+        if engine.in_battle() and engine.battle:
+            status_lines.append("")
+            status_lines.append("Battle:")
+            for idx, enemy in enumerate(engine.battle.enemies):
+                status = "defeated" if not enemy.is_alive() else f"{enemy.hp}/{enemy.max_hp} HP"
+                pointer = "->" if enemy.is_alive() and idx == selected_enemy else "  "
+                status_lines.append(f"{pointer} {idx+1}. {enemy.name} - {status}")
+            actions = engine.list_player_actions()
+            if actions:
+                status_lines.append("")
+                status_lines.append("Actions:")
+                for idx, (kind, name) in enumerate(actions, 1):
+                    label = kind if not name else f"{kind} {name}"
+                    status_lines.append(f"  {idx}. {label}")
+            status_lines.extend(
+                [
+                    "",
+                    "Battle controls:",
+                    "  Arrow keys/A-D to select enemy",
+                    "  1-9 to trigger actions",
+                    "  H to drink the first potion",
+                    "  Esc to leave the adventure",
+                ]
+            )
+        else:
+            status_lines.append("Neighbors:")
+            status_lines.extend([f"  {idx+1}. {node}" for idx, node in enumerate(neighbors)])
+            status_lines.extend(
+                [
+                    "",
+                    "Controls:",
+                    "  1-9 or WASD/Arrow keys to travel",
+                    "  H to drink the first potion",
+                    "  Esc to leave the adventure",
+                ]
+            )
 
         _render_lines(screen, font, status_lines, 20)
 
