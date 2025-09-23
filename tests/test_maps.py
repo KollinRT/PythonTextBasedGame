@@ -1,5 +1,6 @@
 from maps.beginner_map import create_beginner_map
 from maps.intermediate_map import create_intermediate_map
+from maps.advanced_map import create_advanced_map
 
 
 def test_beginner_map_has_transition():
@@ -9,4 +10,11 @@ def test_beginner_map_has_transition():
 
 def test_intermediate_map_round_trip():
     graph = create_intermediate_map()
+    assert graph.nodes["B5"]["transition"] == "advanced"
     assert graph.nodes["B7"]["transition"] == "beginner"
+
+
+def test_advanced_map_links_regions():
+    graph = create_advanced_map()
+    assert graph.nodes["C0"]["transition"] == "intermediate"
+    assert graph.nodes["C11"]["transition"] == "auto"

@@ -19,6 +19,7 @@ def create_intermediate_map() -> Graph:
     graph.nodes["B1"]["shop"] = True
     graph.nodes["B3"]["fishing"] = True
     graph.nodes["B5"]["city"] = True
+    graph.nodes["B5"]["transition"] = "advanced"
     graph.nodes["B7"]["transition"] = "beginner"
 
     return graph

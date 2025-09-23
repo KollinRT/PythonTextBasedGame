@@ -22,6 +22,7 @@ from game_logic.simple_graph import Graph
 from items.items import FishingCatch, Shop, go_fishing, random_loot_drop
 from maps.beginner_map import create_beginner_map
 from maps.intermediate_map import create_intermediate_map
+from maps.advanced_map import create_advanced_map
 
 
 def roll(rng: Optional[random.Random] = None) -> int:
@@ -250,11 +251,20 @@ class GameEngine:
         base_maps: Dict[str, Graph] = {
             "beginner": create_beginner_map(),
             "intermediate": create_intermediate_map(),
+            "advanced": create_advanced_map(),
         }
         self.maps: Dict[str, Graph] = dict(base_maps)
-        self.map_blueprints: Dict[str, MapBlueprint] = {
-            key: blueprint_from_graph(key, graph) for key, graph in base_maps.items()
+        friendly_names = {
+            "beginner": "Beginners' Path",
+            "intermediate": "Winding Expanse",
+            "advanced": "Frontier Bastion",
         }
+        self.map_blueprints: Dict[str, MapBlueprint] = {}
+        for key, graph in base_maps.items():
+            blueprint = blueprint_from_graph(key, graph)
+            if key in friendly_names:
+                blueprint.name = friendly_names[key]
+            self.map_blueprints[key] = blueprint
         for blueprint in self.persistence.iter_maps():
             self.maps[blueprint.key] = blueprint.to_graph()
             self.map_blueprints[blueprint.key] = blueprint
@@ -320,7 +330,9 @@ class GameEngine:
         self.active_map = self.maps[self.current_map_key]
         self.current_node = "A0"
         self.event_log.clear()
-        self.event_log.append(f"{player.name} enters the realm at {self.current_node}.")
+        map_info = self.map_blueprints.get(self.current_map_key)
+        map_label = map_info.name if map_info else self.current_map_key
+        self.event_log.append(f"{player.name} enters {map_label} at {self.current_node}.")
 
     # ------------------------------------------------------------------
     # Movement

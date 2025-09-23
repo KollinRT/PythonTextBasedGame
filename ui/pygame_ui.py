@@ -48,6 +48,20 @@ def _apply_node_events(events: Iterable, log: list[str]) -> bool:
     return game_over
 
 
+def _build_slot_options(engine: GameEngine, *, include_new: bool) -> List[str]:
+    slots = engine.list_saves()
+    if include_new:
+        seen = set(slots)
+        next_index = 1
+        while len(slots) < 9:
+            candidate = f"slot{next_index}"
+            if candidate not in seen:
+                slots.append(candidate)
+                seen.add(candidate)
+            next_index += 1
+    return slots[:9]
+
+
 def run_pygame_ui() -> None:
     pygame.init()
     screen = pygame.display.set_mode(WINDOW_SIZE)
@@ -59,37 +73,85 @@ def run_pygame_ui() -> None:
     engine = GameEngine()
     engine.start_new_game(player)
     log: list[str] = list(engine.event_log)
+    player = engine.player_party[0] if engine.player_party else player
 
     running = True
     game_over = False
     selected_enemy = 0
+    menu_mode: Optional[str] = None
+    menu_slots: List[str] = []
 
     def living_enemy_indices() -> List[int]:
         if not engine.battle:
             return []
         return [idx for idx, enemy in enumerate(engine.battle.enemies) if enemy.is_alive()]
 
+    def refresh_player() -> None:
+        nonlocal player
+        if engine.player_party:
+            player = engine.player_party[0]
+
     while running:
+        refresh_player()
         neighbors = engine.neighbors() if not engine.in_battle() else []
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
+                if menu_mode:
+                    if event.key == pygame.K_ESCAPE:
+                        log.append("Cancelled save/load selection.")
+                        menu_mode = None
+                    elif pygame.K_1 <= event.key <= pygame.K_9:
+                        index = event.key - pygame.K_1
+                        if index < len(menu_slots):
+                            slot = menu_slots[index]
+                            if menu_mode == "save":
+                                try:
+                                    engine.save_game(slot)
+                                    log.append(f"Saved game to '{slot}'.")
+                                except RuntimeError as exc:
+                                    log.append(str(exc))
+                            else:
+                                try:
+                                    engine.load_game(slot)
+                                    new_log = list(engine.event_log[-12:])
+                                    if new_log:
+                                        log = new_log
+                                    game_over = False
+                                    selected_enemy = 0
+                                    log.append(f"Loaded save '{slot}'.")
+                                except (KeyError, ValueError) as exc:
+                                    log.append(str(exc))
+                            menu_mode = None
+                        else:
+                            log.append("No slot bound to that key.")
+                    continue
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                elif event.key == pygame.K_F5:
+                    if game_over:
+                        log.append("Cannot save after a defeat.")
+                    else:
+                        menu_slots = _build_slot_options(engine, include_new=True)
+                        if not menu_slots:
+                            log.append("No slots available to save.")
+                        else:
+                            menu_mode = "save"
+                            log.append("Choose a slot (1-9) to save your progress.")
+                            for idx, slot in enumerate(menu_slots, 1):
+                                log.append(f"  {idx}. {slot}")
+                elif event.key == pygame.K_F9:
+                    menu_slots = _build_slot_options(engine, include_new=False)
+                    if not menu_slots:
+                        log.append("No saved games found.")
+                    else:
+                        menu_mode = "load"
+                        log.append("Choose a slot (1-9) to load.")
+                        for idx, slot in enumerate(menu_slots, 1):
+                            log.append(f"  {idx}. {slot}")
                 elif game_over:
                     continue
-                elif event.key == pygame.K_F5:
-                    engine.save_game("quick")
-                    log.append("Game saved to 'quick'.")
-                elif event.key == pygame.K_F9:
-                    try:
-                        engine.load_game("quick")
-                        log.append("Loaded quick save.")
-                        selected_enemy = 0
-                        game_over = False
-                    except (KeyError, ValueError) as exc:
-                        log.append(str(exc))
                 elif event.key == pygame.K_g:
                     new_map = engine.generate_new_map()
                     log.append(new_map.payload or "Generated new map")
@@ -193,8 +255,11 @@ def run_pygame_ui() -> None:
         log = log[-12:]
         screen.fill(BACKGROUND)
 
+        map_info = engine.map_blueprints.get(engine.current_map_key)
+        map_label = map_info.name if map_info else engine.current_map_key
         status_lines = [
-            f"Location: {engine.current_node} ({engine.current_map_key})",
+            f"Location: {engine.current_node}",
+            f"Map: {map_label} ({engine.current_map_key})",
             f"HP: {player.hp}/{player.max_hp}",
             f"Level: {player.level}  EXP: {player.exp}  Gold: {player.gp}",
         ]
@@ -235,6 +300,8 @@ def run_pygame_ui() -> None:
                     "  Arrow keys/A-D to select enemy",
                     "  1-9 to trigger actions",
                     "  H to drink the first potion",
+                    "  F5 to open save slots",
+                    "  F9 to load a save",
                     "  Esc to leave the adventure",
                 ]
             )
@@ -247,6 +314,9 @@ def run_pygame_ui() -> None:
                     "Controls:",
                     "  1-9 or WASD/Arrow keys to travel",
                     "  H to drink the first potion",
+                    "  F5 to open save slots",
+                    "  F9 to load a save",
+                    "  G to generate a new frontier",
                     "  Esc to leave the adventure",
                 ]
             )

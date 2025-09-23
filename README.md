@@ -20,6 +20,9 @@ pygame user interface.
   from shops, and consume potions that restore HP/MP.
 - **Fishing mini-game** – stepping on fishing tiles triggers a catch with gold
   and experience rewards.
+- **Expanded world** – the handcrafted Beginner trail, Winding Expanse and
+  Frontier Bastion maps interlink with AI-generated frontier regions, so there
+  is always a new path to explore.
 - **Endless frontier maps** – portals can lead to procedurally generated maps
   that are stored in an on-disk SQLite database so discoveries persist between
   sessions. Generate new regions manually at any time with the `generate` text
@@ -67,13 +70,16 @@ python main.py --mode pygame
 ```
 
 Use number keys (`1`, `2`, …), the arrow keys or `WASD` to travel to neighbouring
-nodes.  Press `H` to consume the first available potion and `Esc` to exit.  In
-battle, use the arrow keys or `A`/`D` to choose a target, number keys to trigger
-attacks, spells or abilities, and `H` to drink a potion while enemies counter.
-Healing spells automatically apply to the caster so you can focus on defence or
-offence without swapping target selection. The HUD shows whose turn it is so you
-know when a companion or ranger's pet is waiting for orders – the action keys
-always control the highlighted party member.
+nodes.  Press `H` to consume the first available potion and `Esc` to exit.  Tap
+`F5` to open the save menu and choose a slot with `1-9`, and `F9` to open the
+load menu — the pygame client reads and writes the same SQLite slots as text
+mode so you can swap between interfaces seamlessly.  In battle, use the arrow
+keys or `A`/`D` to choose a target, number keys to trigger attacks, spells or
+abilities, and `H` to drink a potion while enemies counter.  Healing spells
+automatically apply to the caster so you can focus on defence or offence without
+swapping target selection. The HUD shows whose turn it is so you know when a
+companion or ranger's pet is waiting for orders – the action keys always
+control the highlighted party member.
 
 ### Controls at a glance
 
@@ -83,7 +89,8 @@ always control the highlighted party member.
   and `quit` to leave the adventure.
 - **Pygame mode** – move with `1-9`, `WASD` or the arrow keys when exploring.
   During battles use the arrow keys/A-D to select an enemy, `1-9` to perform
-  actions, `H` to drink the first potion and `Esc` to quit.
+  actions, `H` to drink the first potion, `F5`/`F9` to save or load a slot and
+  `Esc` to quit. The same slots appear in both interfaces.
 
 ## Persistence and databases
 
@@ -107,7 +114,8 @@ desired.
 │   └── items.py          # Item definitions, shops, fishing table
 ├── maps
 │   ├── beginner_map.py   # Introductory map
-│   └── intermediate_map.py
+│   ├── intermediate_map.py  # Mid-game routes
+│   └── advanced_map.py   # Frontier Bastion layout
 ├── ui
 │   └── pygame_ui.py      # Graphical front-end
 └── tests                 # Pytest suite
