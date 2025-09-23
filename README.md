@@ -48,7 +48,9 @@ or `quit`).  When a battle starts you decide every action: `attack`,
 `spell fireball`, `ability power shot` or `potion Major HP Potion`.  Append an
 enemy number (e.g. `attack 2`) to focus a specific target – healing spells such
 as the cleric's Healing Prayer automatically restore the caster without needing
-an enemy selection.
+an enemy selection. Rangers can direct their hawk companions by prefixing
+commands with `pet`, e.g. `pet attack 2` or `pet ability twin strike` when the
+companion's initiative turn arrives.
 
 Additional world commands include:
 
@@ -69,7 +71,9 @@ nodes.  Press `H` to consume the first available potion and `Esc` to exit.  In
 battle, use the arrow keys or `A`/`D` to choose a target, number keys to trigger
 attacks, spells or abilities, and `H` to drink a potion while enemies counter.
 Healing spells automatically apply to the caster so you can focus on defence or
-offence without swapping target selection.
+offence without swapping target selection. The HUD shows whose turn it is so you
+know when a companion or ranger's pet is waiting for orders – the action keys
+always control the highlighted party member.
 
 ### Controls at a glance
 

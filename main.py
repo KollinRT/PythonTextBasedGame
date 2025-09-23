@@ -157,6 +157,8 @@ def _print_battle_state(engine: GameEngine) -> None:
         "Optional <target> selects an enemy; healing spells restore the caster."
     )
     print("Use 'potion <name>' to consume a potion.")
+    if any(getattr(member, "role", "") == "pet" for member in engine.player_party):
+        print("Prefix commands with 'pet' to direct your companion when it is their turn.")
 
 
 def _handle_battle_event(engine: GameEngine, event: NodeEvent) -> bool:
@@ -191,15 +193,45 @@ def _prompt_battle_command(engine: GameEngine) -> bool:
     action = parts[0].lower()
     player = engine.player_party[0]
 
+    actor_name_override: Optional[str] = None
+    if parts:
+        alias = parts[0].lower()
+        if alias in {"pet", "companion"}:
+            pet_member = next(
+                (member for member in engine.player_party if getattr(member, "role", "") == "pet" and member.is_alive()),
+                None,
+            )
+            if not pet_member:
+                print("No pet is available to command.")
+                return True
+            actor_name_override = pet_member.name
+            parts = parts[1:]
+            if not parts:
+                print("Specify an action for your pet.")
+                return True
+            action = parts[0].lower()
+
+    acting_player: Optional[Player] = None
+    if actor_name_override:
+        acting_player = next(
+            (member for member in engine.player_party if member.name == actor_name_override),
+            None,
+        )
+    else:
+        current_actor = battle.current_actor()
+        if isinstance(current_actor, Player):
+            acting_player = current_actor
+
     if action == "potion":
         if len(parts) < 2:
             print("Specify a potion name")
             return True
         requested = " ".join(parts[1:])
-        potions = {name.lower(): name for name in player.potions}
+        owner = acting_player or player
+        potions = {name.lower(): name for name in owner.potions}
         potion_name = potions.get(requested.lower(), requested)
         try:
-            event = engine.perform_player_action("potion", name=potion_name)
+            event = engine.perform_player_action("potion", name=potion_name, actor_name=actor_name_override)
         except (KeyError, ValueError) as exc:
             print(exc)
             return True
@@ -226,7 +258,12 @@ def _prompt_battle_command(engine: GameEngine) -> bool:
         return True
 
     try:
-        event = engine.perform_player_action(action, target_index=target_index, name=name)
+        event = engine.perform_player_action(
+            action,
+            target_index=target_index,
+            name=name,
+            actor_name=actor_name_override,
+        )
     except (ValueError, KeyError) as exc:
         print(exc)
         return True

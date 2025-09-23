@@ -202,6 +202,19 @@ def run_pygame_ui() -> None:
             status_lines.insert(2, f"MP: {player.mp}/{player.max_mp}")
 
         if engine.in_battle() and engine.battle:
+            actor = engine.battle.current_actor()
+            status_lines.append("")
+            if actor:
+                status_lines.append(f"Current turn: {actor.name}")
+            status_lines.append("Party:")
+            for member in engine.player_party:
+                resources = f"HP {member.hp}/{member.max_hp}"
+                if isinstance(member, Mage):
+                    resources += f"  MP {member.mp}/{member.max_mp}"
+                if hasattr(member, "focus"):
+                    resources += f"  Focus {member.focus}/{member.max_focus}"
+                marker = "->" if actor is member else "  "
+                status_lines.append(f"{marker} {member.name} - {resources}")
             status_lines.append("")
             status_lines.append("Battle:")
             for idx, enemy in enumerate(engine.battle.enemies):

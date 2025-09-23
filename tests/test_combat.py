@@ -1,6 +1,8 @@
 import random
 
-from classes.classes import Enemy, Item, Mage, Player
+import pytest
+
+from classes.classes import Enemy, Item, Mage, Player, Ranger
 from game_logic.core import Battle, GameEngine, NodeEvent, dealDamage, roll
 
 
@@ -79,6 +81,46 @@ def test_perform_player_action_potion_triggers_enemy_turn(monkeypatch, tmp_path)
     assert any("Awaiting command" in line for line in event.details)
     assert "Basic HP Potion" not in hero.potions
     assert hero.hp > 80
+
+
+def test_pet_can_receive_manual_commands(tmp_path):
+    engine = GameEngine(rng=random.Random(9), db_path=str(tmp_path / "game.db"))
+    ranger = Ranger("Robin", 3, 120, 18)
+    engine.start_new_game(ranger)
+    engine._refresh_party()
+    enemy = Enemy("Bandit", 2, 55, 8)
+    battle = Battle(engine.player_party, [enemy], rng=random.Random(4))
+    battle._turn_queue = [
+        (0.9, ranger.pet),
+        (0.8, ranger),
+        (0.7, enemy),
+    ]
+    battle._turn_index = 0
+    engine.battle = battle
+
+    event = engine.perform_player_action("attack", actor_name=ranger.pet.name)
+    assert event.payload == "Battle continues"
+    assert any(ranger.pet.name in line for line in event.details)
+    assert enemy.hp < enemy.max_hp
+
+
+def test_pet_command_rejected_outside_turn(tmp_path):
+    engine = GameEngine(rng=random.Random(10), db_path=str(tmp_path / "game.db"))
+    ranger = Ranger("Robin", 3, 120, 18)
+    engine.start_new_game(ranger)
+    engine._refresh_party()
+    enemy = Enemy("Bandit", 2, 55, 8)
+    battle = Battle(engine.player_party, [enemy], rng=random.Random(5))
+    battle._turn_queue = [
+        (0.8, ranger),
+        (0.7, ranger.pet),
+        (0.6, enemy),
+    ]
+    battle._turn_index = 0
+    engine.battle = battle
+
+    with pytest.raises(ValueError):
+        engine.perform_player_action("attack", actor_name=ranger.pet.name)
 
 
 

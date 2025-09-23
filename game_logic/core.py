@@ -409,14 +409,36 @@ class GameEngine:
         *,
         target_index: int = 0,
         name: Optional[str] = None,
+        actor_name: Optional[str] = None,
     ) -> NodeEvent:
         if not self.battle:
             raise RuntimeError("No active battle")
         battle = self.battle
         actor = battle.current_actor()
-        if not isinstance(actor, Player):
-            raise RuntimeError("It is not a player's turn")
-        player = actor
+        if actor is None:
+            raise RuntimeError("No combatant available to act")
+
+        if actor_name:
+            requested = actor_name.lower()
+            target_player: Optional[Player] = None
+            for member in battle.players:
+                if member.name.lower() == requested:
+                    target_player = member
+                    break
+            if not target_player and requested in {"pet", "companion"}:
+                for member in battle.players:
+                    if getattr(member, "role", "") == "pet":
+                        target_player = member
+                        break
+            if not target_player:
+                raise ValueError(f"No party member named '{actor_name}'")
+            if target_player is not actor:
+                raise ValueError(f"It is {actor.name}'s turn, not {target_player.name}'s")
+            player = target_player
+        else:
+            if not isinstance(actor, Player):
+                raise RuntimeError("It is not a player's turn")
+            player = actor
         events: List[BattleEvent] = []
 
         action = action.lower()
