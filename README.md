@@ -12,7 +12,8 @@ pygame user interface.
   front-ends.
 - **Initiative-driven combat** – every unit rolls its own initiative and acts in
   order. Heroes, companions, ranger pets and enemies can interleave actions, and
-  the battle log records each turn so you can plan accordingly.
+  the battle log records each turn so you can plan accordingly. Healing spells
+  can be directed to any ally, letting clerics pivot their support on demand.
 - **Class variety & companions** – begin as a stalwart player, arcane mage,
   agile ranger (who now travels with a loyal hawk) or supportive cleric. On your
   travels you can recruit AI-generated allies who permanently join the party.
@@ -49,9 +50,9 @@ python main.py
 Commands are entered as text (for example `move A1`, `potion Basic HP Potion`
 or `quit`).  When a battle starts you decide every action: `attack`,
 `spell fireball`, `ability power shot` or `potion Major HP Potion`.  Append an
-enemy number (e.g. `attack 2`) to focus a specific target – healing spells such
-as the cleric's Healing Prayer automatically restore the caster without needing
-an enemy selection. Rangers can direct their hawk companions by prefixing
+enemy number (e.g. `attack 2`) to focus a specific target, or use
+`spell healing prayer ally 2` / `ally Mira` to channel restorative magic to a
+specific party member. Rangers can direct their hawk companions by prefixing
 commands with `pet`, e.g. `pet attack 2` or `pet ability twin strike` when the
 companion's initiative turn arrives.
 
@@ -74,10 +75,9 @@ nodes.  Press `H` to consume the first available potion and `Esc` to exit.  Tap
 `F5` to open the save menu and choose a slot with `1-9`, and `F9` to open the
 load menu — the pygame client reads and writes the same SQLite slots as text
 mode so you can swap between interfaces seamlessly.  In battle, use the arrow
-keys or `A`/`D` to choose a target, number keys to trigger attacks, spells or
-abilities, and `H` to drink a potion while enemies counter.  Healing spells
-automatically apply to the caster so you can focus on defence or offence without
-swapping target selection. The HUD shows whose turn it is so you know when a
+keys or `A`/`D` to choose a foe, press `Tab` to toggle ally targeting for healing
+spells, use number keys to trigger attacks, spells or abilities, and `H` to drink
+a potion while enemies counter. The HUD shows whose turn it is so you know when a
 companion or ranger's pet is waiting for orders – the action keys always
 control the highlighted party member.
 
@@ -88,7 +88,8 @@ control the highlighted party member.
   `save <slot>`/`load <slot>` to persist progress, `generate` to spawn a new map
   and `quit` to leave the adventure.
 - **Pygame mode** – move with `1-9`, `WASD` or the arrow keys when exploring.
-  During battles use the arrow keys/A-D to select an enemy, `1-9` to perform
+  During battles use the arrow keys/A-D to select an enemy, press `Tab` to switch
+  between enemy and ally healing targets, `1-9` to perform
   actions, `H` to drink the first potion, `F5`/`F9` to save or load a slot and
   `Esc` to quit. The same slots appear in both interfaces.
 

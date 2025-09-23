@@ -129,13 +129,15 @@ class Battle:
     def player_action(
         self,
         player: Player,
-        action: Tuple[str, Optional[str], Optional[int]] | None = None,
+        action: Tuple[str, Optional[str], Optional[int], Optional[str]] | None = None,
     ) -> Optional[BattleEvent]:
         """Execute a player's action.
 
-        ``action`` is a tuple ``(kind, name, target_index)`` where ``kind`` is one of
-        ``"attack"``, ``"spell"`` or ``"ability"``.  When ``action`` is ``None`` the
-        player performs a default basic attack against the first living enemy.
+        ``action`` is a tuple ``(kind, name, target_index, target_side)`` where ``kind``
+        is one of ``"attack"``, ``"spell"`` or ``"ability"``.  ``target_side``
+        distinguishes between ``"enemy"`` and ``"ally"`` targets. When ``action`` is
+        ``None`` the player performs a default basic attack against the first living
+        enemy.
         """
 
         if not player.is_alive():
@@ -146,20 +148,34 @@ class Battle:
         kind = "attack"
         name: Optional[str] = None
         target_index = 0
+        target_side = "enemy"
         if action:
-            kind, name, target_index = action
-        target_index = max(0, min(target_index if target_index is not None else 0, len(living_enemies) - 1))
-        target = living_enemies[target_index]
+            kind = action[0]
+            if len(action) > 1:
+                name = action[1]
+            if len(action) > 2 and action[2] is not None:
+                target_index = action[2]
+            if len(action) > 3 and action[3]:
+                target_side = action[3] or "enemy"
+        target_index = target_index or 0
 
         if kind == "spell" and isinstance(player, Mage) and name:
             spell = player.spells.get(name)
             if spell and getattr(spell, "healing", 0) > 0:
-                healed = player.cast_spell(name, player)
+                allies = self._living_players()
+                ally = player
+                if target_side in {"ally", "self"} and allies:
+                    if target_side == "self":
+                        ally = player
+                    else:
+                        index = max(0, min(target_index, len(allies) - 1))
+                        ally = allies[index]
+                healed = player.cast_spell(name, ally)
                 description = (
-                    f"casts {name} restoring {healed} HP "
-                    f"({player.hp}/{player.max_hp} HP)"
+                    f"casts {name} restoring {healed} HP to {ally.name} "
+                    f"({ally.hp}/{ally.max_hp} HP)"
                 )
-                target = player
+                target = ally
             else:
                 if not living_enemies:
                     return
@@ -168,9 +184,13 @@ class Battle:
                 damage = player.cast_spell(name, target)
                 description = f"casts {name} for {damage} damage ({target.hp}/{target.max_hp} HP left)"
         elif kind == "ability" and hasattr(player, "use_ability") and name:
+            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            target = living_enemies[target_index]
             damage, extra = player.use_ability(name, target)  # type: ignore[attr-defined]
             description = f"{extra} ({target.hp}/{target.max_hp} HP left)"
         else:
+            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            target = living_enemies[target_index]
             damage = player.attack_damage()
             target.take_damage(damage)
             description = f"attacks for {damage} damage ({target.hp}/{target.max_hp} HP left)"
@@ -192,7 +212,10 @@ class Battle:
         self.events.append(event)
         return event
 
-    def resolve(self, player_actions: Optional[Dict[str, Tuple[str, Optional[str], Optional[int]]]] = None) -> BattleResult:
+    def resolve(
+        self,
+        player_actions: Optional[Dict[str, Tuple[str, Optional[str], Optional[int], Optional[str]]]] = None,
+    ) -> BattleResult:
         """Resolve the battle until one side is defeated."""
 
         result = BattleResult(events=list(self.events))
@@ -422,6 +445,8 @@ class GameEngine:
         target_index: int = 0,
         name: Optional[str] = None,
         actor_name: Optional[str] = None,
+        target_kind: str = "enemy",
+        target_name: Optional[str] = None,
     ) -> NodeEvent:
         if not self.battle:
             raise RuntimeError("No active battle")
@@ -467,15 +492,44 @@ class GameEngine:
             events.append(event)
         else:
             living_enemies = battle._living_enemies()
-            if not living_enemies:
-                return self._finalize_battle(events)
-            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            living_allies = battle._living_players()
+            normalized_target = (target_kind or "enemy").lower()
+            requested_name = target_name
+            if normalized_target == "self":
+                normalized_target = "ally"
+                requested_name = requested_name or player.name
+            if normalized_target == "ally":
+                if not living_allies:
+                    raise ValueError("No allies available to target")
+                if requested_name:
+                    match = next(
+                        (idx for idx, member in enumerate(living_allies) if member.name.lower() == requested_name.lower()),
+                        None,
+                    )
+                    if match is None:
+                        raise ValueError(f"No ally named '{requested_name}'")
+                    target_index = match
+                else:
+                    target_index = max(0, min(target_index, len(living_allies) - 1))
+            else:
+                if not living_enemies:
+                    return self._finalize_battle(events)
+                if requested_name:
+                    match = next(
+                        (idx for idx, enemy in enumerate(living_enemies) if enemy.name.lower() == requested_name.lower()),
+                        None,
+                    )
+                    if match is None:
+                        raise ValueError(f"No enemy named '{requested_name}'")
+                    target_index = match
+                else:
+                    target_index = max(0, min(target_index, len(living_enemies) - 1))
             if action == "spell" and not isinstance(player, Mage):
                 raise ValueError("This character cannot cast spells")
             if action == "ability" and not hasattr(player, "use_ability"):
                 raise ValueError("No abilities available")
             normalized_name = name.lower() if name else None
-            descriptor = (action, normalized_name, target_index)
+            descriptor = (action, normalized_name, target_index, normalized_target)
             event = battle.player_action(player, descriptor)
             if event:
                 events.append(event)

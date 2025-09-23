@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import random
-import string
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -73,12 +72,6 @@ class MapBlueprint:
         return cls.from_dict(json.loads(payload))
 
 
-def _random_node_name(rng: random.Random, length: int = 2) -> str:
-    prefix = "N"
-    suffix = "".join(rng.choice(string.ascii_uppercase) for _ in range(length))
-    return prefix + suffix
-
-
 def _generate_node_features(
     rng: random.Random,
     *,
@@ -134,7 +127,15 @@ def generate_blueprint(
     nodes: Dict[str, Dict[str, object]] = {}
     edges: List[Tuple[str, str]] = []
 
-    start_node = _random_node_name(rng)
+    next_id = 1
+
+    def _next_node() -> str:
+        nonlocal next_id
+        value = str(next_id)
+        next_id += 1
+        return value
+
+    start_node = _next_node()
     nodes[start_node] = {"city": True, "encounter": True}
     created_nodes = [start_node]
 
@@ -142,9 +143,7 @@ def generate_blueprint(
     must_have_ally = True
 
     while len(created_nodes) < size:
-        node_name = _random_node_name(rng)
-        if node_name in nodes:
-            continue
+        node_name = _next_node()
         ensure_transition = must_have_transition and len(created_nodes) >= size // 2
         ensure_ally = must_have_ally and len(created_nodes) >= size // 3
         features = _generate_node_features(
@@ -173,7 +172,8 @@ def generate_blueprint(
         node = rng.choice(created_nodes)
         nodes[node]["ally"] = _generate_ally_blueprint(rng, base_level)
 
-    name = f"Frontier {key.title()}"
+    slug = key.split("_")[-1].upper()
+    name = f"Frontier {slug}"
     return MapBlueprint(key=key, name=name, nodes=nodes, edges=edges)
 
 

@@ -78,6 +78,8 @@ def run_pygame_ui() -> None:
     running = True
     game_over = False
     selected_enemy = 0
+    selected_ally = 0
+    target_mode = "enemy"
     menu_mode: Optional[str] = None
     menu_slots: List[str] = []
 
@@ -85,6 +87,11 @@ def run_pygame_ui() -> None:
         if not engine.battle:
             return []
         return [idx for idx, enemy in enumerate(engine.battle.enemies) if enemy.is_alive()]
+
+    def living_ally_indices() -> List[int]:
+        if not engine.battle:
+            return []
+        return [idx for idx, member in enumerate(engine.battle.players) if member.is_alive()]
 
     def refresh_player() -> None:
         nonlocal player
@@ -159,31 +166,84 @@ def run_pygame_ui() -> None:
                     actions: List[Tuple[str, Optional[str]]] = engine.list_player_actions()
                     living = living_enemy_indices()
                     if event.key in {pygame.K_a, pygame.K_LEFT}:
-                        if living:
+                        if target_mode == "ally":
+                            allies = living_ally_indices()
+                            if allies:
+                                if selected_ally not in allies:
+                                    selected_ally = allies[0]
+                                else:
+                                    pos = allies.index(selected_ally)
+                                    selected_ally = allies[(pos - 1) % len(allies)]
+                        elif living:
                             if selected_enemy not in living:
                                 selected_enemy = living[0]
                             else:
                                 pos = living.index(selected_enemy)
                                 selected_enemy = living[(pos - 1) % len(living)]
                     elif event.key in {pygame.K_d, pygame.K_RIGHT}:
-                        if living:
+                        if target_mode == "ally":
+                            allies = living_ally_indices()
+                            if allies:
+                                if selected_ally not in allies:
+                                    selected_ally = allies[0]
+                                else:
+                                    pos = allies.index(selected_ally)
+                                    selected_ally = allies[(pos + 1) % len(allies)]
+                        elif living:
                             if selected_enemy not in living:
                                 selected_enemy = living[0]
                             else:
                                 pos = living.index(selected_enemy)
                                 selected_enemy = living[(pos + 1) % len(living)]
+                    elif event.key == pygame.K_TAB:
+                        if target_mode == "enemy":
+                            allies = living_ally_indices()
+                            if allies:
+                                target_mode = "ally"
+                                selected_ally = allies[0]
+                                log.append("Targeting allies for healing spells.")
+                            else:
+                                log.append("No living allies to target.")
+                        else:
+                            target_mode = "enemy"
+                            log.append("Targeting enemies.")
                     elif pygame.K_1 <= event.key <= pygame.K_9:
                         index = event.key - pygame.K_1
                         if index < len(actions):
                             kind, name = actions[index]
                             try:
-                                battle_event = engine.perform_player_action(kind, target_index=selected_enemy, name=name)
+                                kwargs = {}
+                                actor = engine.battle.current_actor() if engine.battle else None
+                                if kind == "spell" and isinstance(actor, Mage) and name:
+                                    spell = actor.spells.get(name)
+                                    if spell and spell.healing > 0:
+                                        if target_mode == "ally":
+                                            allies = living_ally_indices()
+                                            if allies:
+                                                if selected_ally not in allies:
+                                                    selected_ally = allies[0]
+                                                target_choice = selected_ally
+                                            else:
+                                                target_choice = 0
+                                            kwargs = {"target_kind": "ally", "target_index": target_choice}
+                                        else:
+                                            kwargs = {"target_kind": "ally", "target_index": engine.battle.players.index(actor)}
+                                target_arg = selected_enemy
+                                if "target_index" in kwargs:
+                                    target_arg = kwargs.pop("target_index")
+                                battle_event = engine.perform_player_action(
+                                    kind,
+                                    target_index=target_arg,
+                                    name=name,
+                                    **kwargs,
+                                )
                             except (ValueError, KeyError) as exc:
                                 log.append(str(exc))
                                 continue
                             game_over = _apply_node_events([battle_event], log)
                             if not engine.in_battle():
                                 selected_enemy = 0
+                                target_mode = "enemy"
                         else:
                             log.append("No action bound to that key")
                     elif event.key == pygame.K_h:
@@ -197,6 +257,7 @@ def run_pygame_ui() -> None:
                             game_over = _apply_node_events([battle_event], log)
                             if not engine.in_battle():
                                 selected_enemy = 0
+                                target_mode = "enemy"
                         else:
                             log.append("No potions available")
                 else:
@@ -279,7 +340,15 @@ def run_pygame_ui() -> None:
                 if hasattr(member, "focus"):
                     resources += f"  Focus {member.focus}/{member.max_focus}"
                 marker = "->" if actor is member else "  "
-                status_lines.append(f"{marker} {member.name} - {resources}")
+                heal_flag = ""
+                if target_mode == "ally" and engine.battle:
+                    try:
+                        member_index = engine.battle.players.index(member)
+                    except ValueError:
+                        member_index = -1
+                    if member_index == selected_ally:
+                        heal_flag = " [heal target]"
+                status_lines.append(f"{marker} {member.name}{heal_flag} - {resources}")
             status_lines.append("")
             status_lines.append("Battle:")
             for idx, enemy in enumerate(engine.battle.enemies):
@@ -298,6 +367,7 @@ def run_pygame_ui() -> None:
                     "",
                     "Battle controls:",
                     "  Arrow keys/A-D to select enemy",
+                    "  Tab to switch enemy/ally healing targets",
                     "  1-9 to trigger actions",
                     "  H to drink the first potion",
                     "  F5 to open save slots",

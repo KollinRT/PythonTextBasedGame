@@ -154,7 +154,7 @@ def _print_battle_state(engine: GameEngine) -> None:
             print(f"  {idx}. {label}")
     print(
         "Use 'attack', 'spell <name>', 'ability <name>' or select an action number. "
-        "Optional <target> selects an enemy; healing spells restore the caster."
+        "Add a number to target enemies, or 'ally <name/#>' to heal a party member."
     )
     print("Use 'potion <name>' to consume a potion.")
     if any(getattr(member, "role", "") == "pet" for member in engine.player_party):
@@ -238,24 +238,43 @@ def _prompt_battle_command(engine: GameEngine) -> bool:
         return _handle_battle_event(engine, event)
 
     target_index = 0
-    if len(parts) > 1 and parts[-1].isdigit():
-        target_index = max(0, int(parts[-1]) - 1)
-        parts = parts[:-1]
+    target_kind = "enemy"
+    target_name: Optional[str] = None
 
     name = None
     if action == "spell":
         if len(parts) < 2:
             print("Specify a spell name")
             return True
-        name = " ".join(parts[1:])
-    elif action == "ability":
-        if len(parts) < 2:
-            print("Specify an ability name")
+        tokens = parts[1:]
+        if len(tokens) >= 2 and tokens[-2].lower() in {"ally", "friend"}:
+            target_kind = "ally"
+            spec = tokens[-1]
+            tokens = tokens[:-2]
+            if spec.isdigit():
+                target_index = max(0, int(spec) - 1)
+            else:
+                target_name = spec
+        elif tokens and tokens[-1].lower() in {"self", "me", "caster"}:
+            target_kind = "ally"
+            target_name = acting_player.name if acting_player else None
+            tokens = tokens[:-1]
+        elif tokens and tokens[-1].isdigit():
+            target_index = max(0, int(tokens[-1]) - 1)
+            tokens = tokens[:-1]
+        name = " ".join(tokens)
+    else:
+        if len(parts) > 1 and parts[-1].isdigit():
+            target_index = max(0, int(parts[-1]) - 1)
+            parts = parts[:-1]
+        if action == "ability":
+            if len(parts) < 2:
+                print("Specify an ability name")
+                return True
+            name = " ".join(parts[1:])
+        elif action != "attack":
+            print("Unknown battle command")
             return True
-        name = " ".join(parts[1:])
-    elif action != "attack":
-        print("Unknown battle command")
-        return True
 
     try:
         event = engine.perform_player_action(
@@ -263,6 +282,8 @@ def _prompt_battle_command(engine: GameEngine) -> bool:
             target_index=target_index,
             name=name,
             actor_name=actor_name_override,
+            target_kind=target_kind,
+            target_name=target_name,
         )
     except (ValueError, KeyError) as exc:
         print(exc)

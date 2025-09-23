@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from classes.classes import Enemy, Item, Mage, Player, Ranger
+from classes.classes import Cleric, Enemy, Item, Mage, Player, Ranger
 from game_logic.core import Battle, GameEngine, NodeEvent, dealDamage, roll
 
 
@@ -81,6 +81,40 @@ def test_perform_player_action_potion_triggers_enemy_turn(monkeypatch, tmp_path)
     assert any("Awaiting command" in line for line in event.details)
     assert "Basic HP Potion" not in hero.potions
     assert hero.hp > 80
+
+
+def test_cleric_can_heal_specific_ally(monkeypatch, tmp_path):
+    engine = GameEngine(rng=random.Random(11), db_path=str(tmp_path / "game.db"))
+    cleric = Cleric("Seren", 3, 90, 40, 12)
+    ally = Player("Bran", 3, 120, 18)
+    engine.start_new_game(cleric)
+    engine.recruit_ally(ally)
+    ally.take_damage(45)
+
+    enemy = Enemy("Ogre", 3, 110, 10)
+    monkeypatch.setattr(engine, "_generate_enemies", lambda: [enemy])
+    engine._start_battle()
+
+    assert engine.battle is not None
+    battle = engine.battle
+    battle._turn_queue = [
+        (0.9, cleric),
+        (0.8, ally),
+        (0.7, enemy),
+    ]
+    battle._turn_index = 0
+
+    previous_hp = ally.hp
+    event = engine.perform_player_action(
+        "spell",
+        name="Healing Prayer",
+        target_kind="ally",
+        target_name=ally.name,
+    )
+
+    assert ally.hp > previous_hp
+    assert any(ally.name in line for line in event.details)
+    assert any("healing prayer" in line.lower() for line in event.details)
 
 
 def test_pet_can_receive_manual_commands(tmp_path):
