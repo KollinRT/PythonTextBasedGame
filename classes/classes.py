@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import random
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 @dataclass(slots=True)
@@ -56,6 +56,31 @@ class Item:
             quantity=self.quantity if quantity is None else quantity,
         )
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "level": self.level,
+            "slot": self.slot,
+            "dmg": self.dmg,
+            "hp": self.hp,
+            "mp": self.mp,
+            "value": self.value,
+            "quantity": self.quantity,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Item":
+        return cls(
+            name=data["name"],
+            level=int(data.get("level", 1)),
+            slot=data.get("slot", "misc"),
+            dmg=int(data.get("dmg", 0)),
+            hp=int(data.get("hp", 0)),
+            mp=int(data.get("mp", 0)),
+            value=int(data.get("value", 0)),
+            quantity=int(data.get("quantity", 1)),
+        )
+
 
 @dataclass(slots=True)
 class Spell:
@@ -64,6 +89,25 @@ class Spell:
     mp_cost: int
     damage: int = 0
     healing: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "level_req": self.level_req,
+            "mp_cost": self.mp_cost,
+            "damage": self.damage,
+            "healing": self.healing,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Spell":
+        return cls(
+            data["name"],
+            level_req=int(data.get("level_req", 1)),
+            mp_cost=int(data.get("mp_cost", 0)),
+            damage=int(data.get("damage", 0)),
+            healing=int(data.get("healing", 0)),
+        )
 
 
 class Player:
@@ -113,6 +157,7 @@ class Player:
         self.equipment: Dict[str, Item] = {}
         self.following: List[Player] = []
         self.levels_attained: List[int] = []
+        self.is_companion: bool = False
 
     # ------------------------------------------------------------------
     # Basic combat helpers
@@ -213,6 +258,109 @@ class Player:
         item = self.equipment.pop(slot, None)
         if item:
             self.add_item(item)
+
+    def add_follower(self, follower: "Player") -> None:
+        if follower not in self.following:
+            self.following.append(follower)
+
+    # ------------------------------------------------------------------
+    # Serialization helpers
+    # ------------------------------------------------------------------
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            "type": self.__class__.__name__,
+            "name": self.name,
+            "level": self.level,
+            "max_hp": self.max_hp,
+            "hp": self.hp,
+            "dmg": self.dmg,
+            "crit_dmg": self.crit_dmg,
+            "crit_chance": self.crit_chance,
+            "exp": self.exp,
+            "gp": self.gp,
+            "inventory": [item.to_dict() for item in self.inventory.values()],
+            "potions": [item.to_dict() for item in self.potions.values()],
+            "equipment": {slot: item.to_dict() for slot, item in self.equipment.items()},
+            "followers": [follower.to_dict() for follower in self.following],
+            "is_companion": self.is_companion,
+        }
+        if self.levels_attained:
+            data["levels_attained"] = list(self.levels_attained)
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Player":
+        player_type = data.get("type", "Player")
+        name = data["name"]
+        level = int(data.get("level", 1))
+        max_hp = int(data.get("max_hp", data.get("hp", 0)))
+        dmg = int(data.get("dmg", 1))
+        exp = int(data.get("exp", 0))
+        gp = int(data.get("gp", 0))
+        crit_dmg = float(data.get("crit_dmg", 1.25))
+        crit_chance = float(data.get("crit_chance", 0.1))
+
+        player: Player
+        if player_type == "Mage":
+            max_mp = int(data.get("max_mp", data.get("mp", 0)))
+            spells = [Spell.from_dict(spell) for spell in data.get("spells", [])]
+            player = Mage(name, level, max_hp, max_mp, dmg, exp=exp, gp=gp, spells=spells)
+        elif player_type == "Ranger":
+            focus = int(data.get("max_focus", data.get("focus", 2)))
+            player = Ranger(name, level, max_hp, dmg, exp=exp, gp=gp, focus=focus)
+        elif player_type == "Cleric":
+            max_mp = int(data.get("max_mp", data.get("mp", 0)))
+            spells = [Spell.from_dict(spell) for spell in data.get("spells", [])]
+            player = Cleric(name, level, max_hp, max_mp, dmg, exp=exp, gp=gp, spells=spells)
+        elif player_type == "Companion":
+            role = data.get("role", "companion")
+            player = Companion(name, level, max_hp, dmg, role=role)
+        else:
+            player = Player(name, level, max_hp, dmg, exp=exp, gp=gp, crit_dmg=crit_dmg, crit_chance=crit_chance)
+
+        player.hp = int(data.get("hp", player.max_hp))
+        player.crit_dmg = crit_dmg
+        player.crit_chance = crit_chance
+        player.exp = exp
+        player.gp = gp
+        player.levels_attained = list(data.get("levels_attained", []))
+        player.is_companion = bool(data.get("is_companion", False))
+
+        player.inventory.clear()
+        for item_data in data.get("inventory", []):
+            item = Item.from_dict(item_data)
+            player.inventory[item.name] = item
+
+        player.potions.clear()
+        for potion_data in data.get("potions", []):
+            potion = Item.from_dict(potion_data)
+            player.potions[potion.name] = potion
+
+        player.equipment.clear()
+        for slot, item_data in data.get("equipment", {}).items():
+            player.equipment[slot] = Item.from_dict(item_data)
+
+        player.following = []
+        if isinstance(player, Ranger):
+            player.pet = None
+        for follower_data in data.get("followers", []):
+            follower = Player.from_dict(follower_data)
+            player.add_follower(follower)
+            if isinstance(player, Ranger) and isinstance(follower, Companion) and getattr(follower, "role", "") == "pet":
+                player.pet = follower
+
+        if isinstance(player, Mage):
+            player.max_mp = int(data.get("max_mp", player.max_mp))
+            player.mp = int(data.get("mp", player.max_mp))
+            if data.get("spells"):
+                player.spells = {spell["name"]: Spell.from_dict(spell) for spell in data["spells"]}
+        if isinstance(player, Ranger):
+            player.max_focus = int(data.get("max_focus", player.max_focus))
+            player.focus = int(data.get("focus", player.focus))
+        if isinstance(player, Companion):
+            player.role = data.get("role", getattr(player, "role", "companion"))
+
+        return player
 
 
 class Enemy(Player):
@@ -328,6 +476,17 @@ class Mage(Player):
         self.max_mp += mp_increase
         self.mp = self.max_mp
 
+    def to_dict(self) -> Dict[str, Any]:  # type: ignore[override]
+        data = super().to_dict()
+        data.update(
+            {
+                "mp": self.mp,
+                "max_mp": self.max_mp,
+                "spells": [spell.to_dict() for spell in self.spells.values()],
+            }
+        )
+        return data
+
 
 class Ranger(Player):
     """Agile ranged fighter with a focus resource for abilities."""
@@ -357,6 +516,10 @@ class Ranger(Player):
         )
         self.max_focus = focus
         self.focus = focus
+        pet_name = f"{name}'s Hawk"
+        self.pet = Companion(pet_name, level=max(1, level), hp=max(20, hp // 2), dmg=max(4, dmg // 2), role="pet")
+        self.pet.is_companion = True
+        self.add_follower(self.pet)
 
     def reset_focus(self) -> None:
         self.focus = self.max_focus
@@ -399,6 +562,18 @@ class Ranger(Player):
             self.max_focus += 1
         self.focus = self.max_focus
 
+    def to_dict(self) -> Dict[str, Any]:  # type: ignore[override]
+        data = super().to_dict()
+        data.update(
+            {
+                "focus": self.focus,
+                "max_focus": self.max_focus,
+            }
+        )
+        if getattr(self, "pet", None):
+            data["pet_name"] = self.pet.name
+        return data
+
 
 class Cleric(Mage):
     """Holy spellcaster with restorative-oriented spell list."""
@@ -409,3 +584,28 @@ class Cleric(Mage):
         Spell("radiance", level_req=4, mp_cost=6, damage=20),
         Spell("divine storm", level_req=8, mp_cost=10, damage=32),
     ]
+
+
+class Companion(Player):
+    """Lightweight follower used for allies and ranger pets."""
+
+    def __init__(
+        self,
+        name: str,
+        level: int,
+        hp: int,
+        dmg: int,
+        *,
+        role: str = "companion",
+        crit_dmg: float = 1.2,
+        crit_chance: float = 0.08,
+    ) -> None:
+        super().__init__(name, level, hp, dmg, crit_dmg=crit_dmg, crit_chance=crit_chance)
+        self.role = role
+        self.is_companion = True
+
+    def to_dict(self) -> Dict[str, Any]:  # type: ignore[override]
+        data = super().to_dict()
+        data["type"] = "Companion"
+        data["role"] = self.role
+        return data

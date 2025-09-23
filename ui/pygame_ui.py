@@ -38,6 +38,11 @@ def _apply_node_events(events: Iterable, log: list[str]) -> bool:
             log.append(node_event.payload or "Fishing result")
         elif node_event.kind == "transition":
             log.append(f"Traveled to {node_event.payload}")
+        elif node_event.kind == "ally":
+            log.append(node_event.payload or "An ally joined the party")
+            log.extend(node_event.details)
+        elif node_event.kind == "map":
+            log.append(node_event.payload or "Discovered a new map")
         elif node_event.payload:
             log.append(node_event.payload)
     return game_over
@@ -74,6 +79,20 @@ def run_pygame_ui() -> None:
                     running = False
                 elif game_over:
                     continue
+                elif event.key == pygame.K_F5:
+                    engine.save_game("quick")
+                    log.append("Game saved to 'quick'.")
+                elif event.key == pygame.K_F9:
+                    try:
+                        engine.load_game("quick")
+                        log.append("Loaded quick save.")
+                        selected_enemy = 0
+                        game_over = False
+                    except (KeyError, ValueError) as exc:
+                        log.append(str(exc))
+                elif event.key == pygame.K_g:
+                    new_map = engine.generate_new_map()
+                    log.append(new_map.payload or "Generated new map")
                 elif engine.in_battle():
                     actions: List[Tuple[str, Optional[str]]] = engine.list_player_actions()
                     living = living_enemy_indices()

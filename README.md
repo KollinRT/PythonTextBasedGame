@@ -10,26 +10,30 @@ pygame user interface.
 - **Flexible game engine** – the `GameEngine` class coordinates movement,
   encounters, inventory and shops in a way that can be reused by different
   front-ends.
-- **Multiple enemies & tactical combat** – encounters spawn one to three enemies
-  and turn-based battles let you choose between attacks, spells, abilities and
-  potions each round.
-- **Class variety** – begin as a stalwart player, arcane mage, agile ranger or
-  supportive cleric (who now opens with the restorative Healing Prayer spell),
-  each with distinct stats and abilities.
+- **Initiative-driven combat** – every unit rolls its own initiative and acts in
+  order. Heroes, companions, ranger pets and enemies can interleave actions, and
+  the battle log records each turn so you can plan accordingly.
+- **Class variety & companions** – begin as a stalwart player, arcane mage,
+  agile ranger (who now travels with a loyal hawk) or supportive cleric. On your
+  travels you can recruit AI-generated allies who permanently join the party.
 - **Inventory & potions** – players can equip weapons and armor, purchase items
   from shops, and consume potions that restore HP/MP.
 - **Fishing mini-game** – stepping on fishing tiles triggers a catch with gold
   and experience rewards.
-- **Map transitions** – the beginner map leads into an intermediate area and the
-  journey can return back.
+- **Endless frontier maps** – portals can lead to procedurally generated maps
+  that are stored in an on-disk SQLite database so discoveries persist between
+  sessions. Generate new regions manually at any time with the `generate` text
+  command.
+- **Save anywhere** – the engine can be saved and resumed with `save <slot>` and
+  `load <slot>` commands. All heroes, companions and map discoveries are stored
+  in the same SQLite database.
 - **Pygame interface** – run the game with a simple graphical overlay that shows
   status, neighbours, recent events and full battle breakdowns.
 
 ## Requirements
 
 - Python 3.10+
-- `pygame` and `networkx` (install via `pip install -r requirements.txt` or
-  manually `pip install pygame networkx`).
+- `pygame` (install via `pip install pygame`).
 
 ## Running the game
 
@@ -45,6 +49,14 @@ or `quit`).  When a battle starts you decide every action: `attack`,
 enemy number (e.g. `attack 2`) to focus a specific target – healing spells such
 as the cleric's Healing Prayer automatically restore the caster without needing
 an enemy selection.
+
+Additional world commands include:
+
+- `save <slot>` – write the current hero, party and map progress to SQLite.
+- `load <slot>` – resume a previous save.
+- `generate [size]` – create a new AI-guided frontier map (size defaults to a
+  random value).
+- `saves` – list the available save slots.
 
 ### Pygame mode
 
@@ -62,11 +74,22 @@ offence without swapping target selection.
 ### Controls at a glance
 
 - **Text mode** – type `move <node>` to travel, issue battle commands such as
-  `attack`, `spell <name>` or `ability <name>`, use `potion <name>` to heal and
-  `quit` to leave the adventure.
+  `attack`, `spell <name>` or `ability <name>`, use `potion <name>` to heal,
+  `save <slot>`/`load <slot>` to persist progress, `generate` to spawn a new map
+  and `quit` to leave the adventure.
 - **Pygame mode** – move with `1-9`, `WASD` or the arrow keys when exploring.
   During battles use the arrow keys/A-D to select an enemy, `1-9` to perform
   actions, `H` to drink the first potion and `Esc` to quit.
+
+## Persistence and databases
+
+Generated frontier maps and save slots are stored in an SQLite database (by
+default `game_data.db`). SQLite offers the right balance of portability and
+capability for a local adventure game: it is part of Python's standard library,
+requires no external server, yet is robust enough to hold the procedurally
+generated content and long-term save data. The `ADVENTURE_DB` environment
+variable can be set to point the engine at an alternate database path if
+desired.
 
 ## Project layout
 

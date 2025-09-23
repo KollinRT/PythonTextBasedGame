@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from classes.classes import Item
 
@@ -88,6 +88,14 @@ class Shop:
         if self.inventory[item_name].quantity <= 0:
             del self.inventory[item_name]
         return item.copy(quantity=1)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {name: item.to_dict() for name, item in self.inventory.items()}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Shop":
+        inventory = {name: Item.from_dict(item) for name, item in data.items()}
+        return cls(inventory)
 
 
 @dataclass(slots=True)

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 
+from typing import Optional
+
 from classes.classes import Mage, Player
 from game_logic.core import GameEngine, NodeEvent, startGame
 
@@ -21,12 +23,22 @@ def _select_player_class() -> str:
 
 
 def _print_status(engine: GameEngine) -> None:
+    if not engine.player_party:
+        return
     player = engine.player_party[0]
+    map_info = engine.map_blueprints.get(engine.current_map_key)
+    map_label = map_info.name if map_info else engine.current_map_key
     print("-" * 40)
-    print(f"Location: {engine.current_node} on {engine.current_map_key} map")
-    print(f"HP: {player.hp}/{player.max_hp}")
-    if isinstance(player, Mage):
-        print(f"MP: {player.mp}/{player.max_mp}")
+    print(f"Location: {engine.current_node} on {map_label} map")
+    print("Party:")
+    for member in engine.player_party:
+        resources = f"HP {member.hp}/{member.max_hp}"
+        if isinstance(member, Mage):
+            resources += f"  MP {member.mp}/{member.max_mp}"
+        if hasattr(member, "focus"):
+            resources += f"  Focus {member.focus}/{member.max_focus}"
+        tag = "(leader)" if member is player else ""
+        print(f"  {member.name} {tag} - {resources}")
     print(f"Level: {player.level}  EXP: {player.exp}  Gold: {player.gp}")
     print("Inventory:")
     for item in player.sort_inventory():
@@ -42,9 +54,47 @@ def _prompt_command(engine: GameEngine) -> bool:
         return _prompt_battle_command(engine)
     neighbors = engine.neighbors()
     print(f"You can travel to: {', '.join(neighbors)}")
-    command = input("Enter command (move <node>/potion <name>/quit): ").strip().lower()
+    command = input(
+        "Enter command (move <node>/potion <name>/save <slot>/load <slot>/generate [size]/quit): "
+    ).strip()
     if command == "quit":
         return False
+    if command.lower() == "saves":
+        slots = engine.list_saves()
+        if slots:
+            print("Available saves:")
+            for slot in slots:
+                print(f"  {slot}")
+        else:
+            print("No saves yet.")
+        return True
+    if command.lower().startswith("save"):
+        _, _, slot = command.partition(" ")
+        slot = slot.strip() or "slot1"
+        engine.save_game(slot)
+        print(f"Game saved to '{slot}'.")
+        return True
+    if command.lower().startswith("load"):
+        _, _, slot = command.partition(" ")
+        slot = slot.strip()
+        if not slot:
+            print("Specify a save slot to load.")
+            return True
+        try:
+            engine.load_game(slot)
+            print(f"Loaded save '{slot}'.")
+        except (KeyError, ValueError) as exc:
+            print(exc)
+        return True
+    if command.lower().startswith("generate"):
+        parts = command.split()
+        size = None
+        if len(parts) > 1 and parts[1].isdigit():
+            size = int(parts[1])
+        event = engine.generate_new_map(size=size)
+        if event.payload:
+            print(event.payload)
+        return True
     if command.startswith("move"):
         _, _, destination = command.partition(" ")
         if destination:
@@ -66,7 +116,10 @@ def _prompt_command(engine: GameEngine) -> bool:
                 elif event.kind == "fishing":
                     print(event.payload)
                 elif event.kind == "transition":
-                    print(f"Traveled to {event.payload} map")
+                    key = event.details[0] if event.details else engine.current_map_key
+                    map_info = engine.map_blueprints.get(key)
+                    label = event.payload or (map_info.name if map_info else key)
+                    print(f"Traveled to {label} map")
                 elif event.payload:
                     print(event.payload)
             return True
@@ -86,6 +139,9 @@ def _print_battle_state(engine: GameEngine) -> None:
     battle = engine.battle
     if not battle:
         return
+    actor = battle.current_actor()
+    if actor:
+        print(f"Current turn: {actor.name}")
     print("Enemies:")
     for idx, enemy in enumerate(battle.enemies, 1):
         status = "DEFEATED" if not enemy.is_alive() else f"{enemy.hp}/{enemy.max_hp} HP"
@@ -193,17 +249,32 @@ def _handle_shop(engine: GameEngine) -> None:
 
 
 def run_text_mode() -> None:
-    name = input("What is your character's name?: ").strip() or "Hero"
-    class_choice = _select_player_class()
-    player = startGame(name, class_choice)
     engine = GameEngine()
-    engine.start_new_game(player)
+    player: Optional[Player] = None
+    existing = engine.list_saves()
+    if existing:
+        print("Existing saves:")
+        for slot in existing:
+            print(f"  {slot}")
+        choice = input("Enter a slot to load or leave blank for a new game: ").strip()
+        if choice:
+            try:
+                engine.load_game(choice)
+                player = engine.hero
+                print(f"Resumed adventure from '{choice}'.")
+            except (KeyError, ValueError) as exc:
+                print(exc)
+    if not player:
+        name = input("What is your character's name?: ").strip() or "Hero"
+        class_choice = _select_player_class()
+        player = startGame(name, class_choice)
+        engine.start_new_game(player)
     print("Welcome to the adventure!")
     running = True
-    while running and player.is_alive():
+    while running and engine.hero and engine.hero.is_alive():
         _print_status(engine)
         running = _prompt_command(engine)
-    if not player.is_alive():
+    if engine.hero and not engine.hero.is_alive():
         print("Your journey ends here...")
 
 
