@@ -13,12 +13,46 @@ BACKGROUND = (30, 30, 40)
 TEXT_COLOR = (230, 230, 230)
 
 
-def _render_lines(screen: pygame.Surface, font: pygame.font.Font, lines: list[str], start_y: int) -> None:
+def _render_lines(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    lines: list[str],
+    start_y: int,
+    max_y: int = 600,
+    max_width: int = 860
+) -> int:
+    """Render lines of text with boundary checking to prevent overlap.
+    
+    Args:
+        screen: Pygame surface to render on
+        font: Font to use for rendering
+        lines: List of text lines to render
+        start_y: Y coordinate to start rendering
+        max_y: Y coordinate to stop rendering (prevents overflow)
+        max_width: Maximum width before truncating with "..."
+    
+    Returns:
+        The Y coordinate where rendering stopped
+    """
     y = start_y
     for line in lines:
+        # Stop if we would render past the boundary
+        if y + font.get_linesize() > max_y:
+            break
+        
         text = font.render(line, True, TEXT_COLOR)
+        
+        # Truncate long lines with ellipsis
+        if text.get_width() > max_width:
+            truncated = line
+            while len(truncated) > 3 and font.size(truncated + "...")[0] > max_width:
+                truncated = truncated[:-1]
+            text = font.render(truncated + "...", True, TEXT_COLOR)
+        
         screen.blit(text, (20, y))
         y += font.get_linesize()
+    
+    return y
 
 def _apply_node_events(events: Iterable, log: list[str]) -> bool:
     """Add node events to the on-screen log and return True if the party died."""
@@ -391,10 +425,15 @@ def run_pygame_ui() -> None:
                 ]
             )
 
-        _render_lines(screen, font, status_lines, 20)
+        # Render status panel (top region: Y=20 to Y=280)
+        # This prevents status lines from overlapping with the event log
+        _render_lines(screen, font, status_lines, 20, max_y=280)
 
-        log_header = ["Event Log:"] + log
-        _render_lines(screen, font, log_header, 300)
+        # Render event log (bottom region: Y=300 to Y=580)
+        # Limit to most recent entries that fit in the region
+        max_log_lines = (580 - 300) // font.get_linesize() - 1  # -1 for header
+        log_header = ["Event Log:"] + log[-max_log_lines:]
+        _render_lines(screen, font, log_header, 300, max_y=580)
 
         pygame.display.flip()
         clock.tick(30)
