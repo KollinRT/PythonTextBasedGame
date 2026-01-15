@@ -1,47 +1,33 @@
-def BinaryArraySearch(A, target):
-    lo = 0
-    hi = len(A) - 1
+"""Simple search algorithms used for documentation and testing."""
 
-    while lo <= hi:
-        mid = (lo + hi) // 2
+from __future__ import annotations
 
-        diff = target - A[mid]
-        if diff < 0:
-            hi = mid - 1
-        elif diff > 0:
-            lo = mid + 1
-        else:
+from typing import Iterable, Sequence
+
+
+def binary_search(sequence: Sequence[int], target: int) -> int | None:
+    low = 0
+    high = len(sequence) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        value = sequence[mid]
+        if value == target:
             return mid
-    
-    return False # returned if not in array.
-
-def modReturnBinaryArraySearch(A, target):
-    lo = 0
-    hi = len(A) - 1
-
-    while lo <= hi:
-        mid = (lo + hi) // 2
-
-        diff = target - A[mid]
-        if diff < 0:
-            hi = mid - 1
-        elif diff > 0:
-            lo = mid + 1
+        if value < target:
+            low = mid + 1
         else:
-            return mid
-    
-    if len(A) % 2 == 0:
-        return (lo) # returns where target should be if not in.
-    else:
-        return -(lo+1) # returns (-) idx position if that is where target would be.
-                   # returns (+) idx position if that is where target is. 
+            high = mid - 1
+    return None
 
-A = [3, 14, 15, 19, 26, 53, 58, 65]
 
-print(BinaryArraySearch(A, 17))
-# A.insert(-5, 4) # at -4 index, and yeah...
-A.insert(3, 17) # at -4 index, and yeah...
-print(BinaryArraySearch(A, 17))
-for idx, element in enumerate(A):
-    print(f"{idx}, {element}")
-# print(A)
+def insertion_index(sequence: Sequence[int], target: int) -> int:
+    low = 0
+    high = len(sequence)
+    while low < high:
+        mid = (low + high) // 2
+        if sequence[mid] < target:
+            low = mid + 1
+        else:
+            high = mid
+    return low
+

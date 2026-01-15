@@ -1,128 +1,140 @@
-# Python Text-Based Adventure Game
-This is the README.md file for the development of this project.
+# Python Text Adventure
 
-This game is a test-based python adventure game. This game came out of an interest in old-school text-based RPGs. My desire with this project is to implement the logic of python to create a game that mirrors what I have encountered before and maybe adds upon some features.
+The project evolved from an experimental text RPG into a more feature complete
+adventure engine.  The current iteration introduces a structured game engine,
+multi-enemy combat, a potion and loot system, fishing, shops and a lightweight
+pygame user interface.
 
-Game development is new to me, so bear with please. I am learning as I go in terms of how to structure this program based off of my knowledge and understanding of python but also trying to make it easily understood and extensible by others.
+## Features
 
-## Core Components:
-**Logic**:   <br>
-**Structure**: The structures follows the schematic that I have drawn below. This
-### The files in this repo (and a description of what they do)
+- **Flexible game engine** – the `GameEngine` class coordinates movement,
+  encounters, inventory and shops in a way that can be reused by different
+  front-ends.
+- **Initiative-driven combat** – every unit rolls its own initiative and acts in
+  order. Heroes, companions, ranger pets and enemies can interleave actions, and
+  the battle log records each turn so you can plan accordingly. Healing spells
+  can be directed to any ally, letting clerics pivot their support on demand.
+- **Class variety & companions** – begin as a stalwart player, arcane mage,
+  agile ranger (who now travels with a loyal hawk) or supportive cleric. On your
+  travels you can recruit AI-generated allies who permanently join the party.
+- **Inventory & potions** – players can equip weapons and armor, purchase items
+  from shops, and consume potions that restore HP/MP.
+- **Fishing mini-game** – stepping on fishing tiles triggers a catch with gold
+  and experience rewards.
+- **Expanded world** – the handcrafted Beginner trail, Winding Expanse and
+  Frontier Bastion maps interlink with AI-generated frontier regions, so there
+  is always a new path to explore.
+- **Endless frontier maps** – portals can lead to procedurally generated maps
+  that are stored in an on-disk SQLite database so discoveries persist between
+  sessions. Generate new regions manually at any time with the `generate` text
+  command.
+- **Save anywhere** – the engine can be saved and resumed with `save <slot>` and
+  `load <slot>` commands. All heroes, companions and map discoveries are stored
+  in the same SQLite database.
+- **Pygame interface** – run the game with a simple graphical overlay that shows
+  status, neighbours, recent events and full battle breakdowns.
+
+## Requirements
+
+- Python 3.10+
+- `pygame` (install via `pip install pygame`).
+
+## Running the game
+
+### Text mode
+
+```bash
+python main.py
 ```
-├── tests
-│   ├── __init__.py (A file used to call tests as a module.)
-│   │
-│   └── test_maps.py (A file contained to test the functions
-│                      implemented with graphAlgs)
+
+Commands are entered as text (for example `move A1`, `potion Basic HP Potion`
+or `quit`).  When a battle starts you decide every action: `attack`,
+`spell fireball`, `ability power shot` or `potion Major HP Potion`.  Append an
+enemy number (e.g. `attack 2`) to focus a specific target, or use
+`spell healing prayer ally 2` / `ally Mira` to channel restorative magic to a
+specific party member. Rangers can direct their hawk companions by prefixing
+commands with `pet`, e.g. `pet attack 2` or `pet ability twin strike` when the
+companion's initiative turn arrives.
+
+Additional world commands include:
+
+- `save <slot>` – write the current hero, party and map progress to SQLite.
+- `load <slot>` – resume a previous save.
+- `generate [size]` – create a new AI-guided frontier map (size defaults to a
+  random value).
+- `saves` – list the available save slots.
+
+### Pygame mode
+
+```bash
+python main.py --mode pygame
+```
+
+Use number keys (`1`, `2`, …), the arrow keys or `WASD` to travel to neighbouring
+nodes.  Press `H` to consume the first available potion and `Esc` to exit.  Tap
+`F5` to open the save menu and choose a slot with `1-9`, and `F9` to open the
+load menu — the pygame client reads and writes the same SQLite slots as text
+mode so you can swap between interfaces seamlessly.  In battle, use the arrow
+keys or `A`/`D` to choose a foe, press `Tab` to toggle ally targeting for healing
+spells, use number keys to trigger attacks, spells or abilities, and `H` to drink
+a potion while enemies counter. The HUD shows whose turn it is so you know when a
+companion or ranger's pet is waiting for orders – the action keys always
+control the highlighted party member.
+
+### Controls at a glance
+
+- **Text mode** – type `move <node>` to travel, issue battle commands such as
+  `attack`, `spell <name>` or `ability <name>`, use `potion <name>` to heal,
+  `save <slot>`/`load <slot>` to persist progress, `generate` to spawn a new map
+  and `quit` to leave the adventure.
+- **Pygame mode** – move with `1-9`, `WASD` or the arrow keys when exploring.
+  During battles use the arrow keys/A-D to select an enemy, press `Tab` to switch
+  between enemy and ally healing targets, `1-9` to perform
+  actions, `H` to drink the first potion, `F5`/`F9` to save or load a slot and
+  `Esc` to quit. The same slots appear in both interfaces.
+
+## Persistence and databases
+
+Generated frontier maps and save slots are stored in an SQLite database (by
+default `game_data.db`). SQLite offers the right balance of portability and
+capability for a local adventure game: it is part of Python's standard library,
+requires no external server, yet is robust enough to hold the procedurally
+generated content and long-term save data. The `ADVENTURE_DB` environment
+variable can be set to point the engine at an alternate database path if
+desired.
+
+## Project layout
+
+```
 ├── classes
-│   ├── __init__.py (A file used to call classes as a module.)
-│   │
-│   ├── Player.py (Consists of the base class Player, that is
-│   │              extended upon by other classes.)
-│   ├── Mage.py   (Consists of the Mage class which inherits from
-│   │               Player and adds support for MP and spell logic.)
-│   └ Enemy.py (Consists of the Enemy class which inherits from Player and isn't anything too special. Doesn't consist of any special methods )
-│
-├── maps
-│   ├── __init__.py (A file used to call maps as a module.)
-│   │
-│   ├── beginner_map.py (Consists of the starting map which is just
-│   │                    a basic map with a few different zones.)
-│   └── intermediate_map.py (Not constructed yet but will be a map
-│                             with additional zones.)
-├── algs
-│   ├── __init__.py (A file used to call algs as a module.)
-│   │
-│   ├── graphAlgs.py (The module which contains the graph
-│   │                    algorithms)
-│   ├── searchAlgs.py (The module which contains the graph
-│   │                    algorithms
-│   └── sortAlgs.py (Not constructed yet but will be a map
-│                             with additional zones.)
+│   ├── classes.py        # Player, Enemy, Mage and supporting data classes
+│   └── items.py          # Simple helpers for consumables
+├── game_logic
+│   └── core.py           # GameEngine, Battle system and helpers
 ├── items
-│   ├── __init__.py (A file used to call algs as a module.)
-│   │
-│   └── items.py (Used as a catch for introducing a new items class.)
-│                            
-├── main.py (Consists of the logic that strings together the program.)
-│
-│                              
-└── customErrors.py (A module which contains custom errors for
-                     error handling for certain game-specific issues.)
+│   └── items.py          # Item definitions, shops, fishing table
+├── maps
+│   ├── beginner_map.py   # Introductory map
+│   ├── intermediate_map.py  # Mid-game routes
+│   └── advanced_map.py   # Frontier Bastion layout
+├── ui
+│   └── pygame_ui.py      # Graphical front-end
+└── tests                 # Pytest suite
 ```
 
+## Testing
 
-<br>
+Run the automated test-suite with:
 
-**Map**: The game uses graphs implemented via a dict-of-dicts or dict-of-dicts-of-dicts with the construction being outsourced to the networkx module. This module provides me with the basics of graph construction and a few algorithms albeit I have chosen to implement those algorithms myself to more understand their logic and how they work and how to best integrate them in the future for additional game mechanics. <br>
-
-## Goals:
-### To Implement
-- [ ] Finish basics of game logic  
-  - [x] Get the start of game setup
-  - [x] Integrate game with movement
-  - [ ] Write some sorting algorithms for the inventory sorting  
-  - [x] Get the random encounters working
-  - [x] Write an exp level up function
-  - [ ] Get the shop working
-    - [x] add gold acquisition methods
-    - [ ] add shop inventory system
-  - [ ] Add fishing
-- [ ] Add more comprehensive documentation
-- [ ] More comprehensive testing
-  - [ ] determine how to best write the tests with pytest.  
-  - [ ] test new functions as implemented
-- [ ] Add a potion system
-
-### Stretch implementations
-- [ ] Additional functionalities  
-  - [ ] Additional characters during battle
-    - [ ] Maybe extend to allow a "companion" assistant during battle.
-    - [ ] Add the capacity for multiple enemies as well
-      - Would involve the need to implement logic for both targeting additional enemies and additional players.
-- [ ] Additional Classes?
-  - [ ] Ranger with a companion monster and advanced scouting?
-    - [ ] Character pathfinding. Maybe this class has support for utilizing the graph pathfinding algorithms to find the closest path between current location and the next town or chest or something?
-  - [ ] Cleric with heals?
-- [ ] Get random item drops?
-- [ ] Add AI/logic to enemies:
-  - [ ] work with randomized enemy stats/levels.
-  - [ ] Add more complex decision making and skills to enemies.
-
-- [ ] Add more logic for map transition (i.e. beginner_map -> intermediate_map)
-
-- [ ] Maybe fix
-```
-class Enemy(Player):
-# Maybe fix this
-def __init__(self, name, level, hp, dmg, critDmg=1.25, critChance=100, expWorth=500):
+```bash
+pytest
 ```
 
-## How to Run
-### Code
-Download the code and unzip it. Launch up your terminal and use a terminal language, I prefer bash. Then execute the command
-```
-python3 main.py
-```
-and enjoy!
+## Contribution guidelines
 
-### Tested using
-```
-Python == 3.10.4
-networkx == 2.7.1/2.8.4
-```
+- Keep the core logic under `game_logic/core.py` clean and without print
+  side-effects to allow reuse by multiple interfaces.
+- Write or update tests for any new feature.
+- Prefer dataclasses for new data structures and keep interactions deterministic
+  where possible to simplify testing.
 
-### Common Errors
-
-Running
-```
-export PYTHONPATH="${PYTHONPATH}:/path/to/your/project/"
-```
-in you terminal will alleviate the issue of `ModuleNotFoundError:` that occurs when trying to work with the software and will be needed to fix import errors.
-
-
-### Seeking Feedback
-Please submit any pull requests or leave comments if you would like any features implemented!
-
-If you have any ideas on how to better implement the logic or in adding additional features, please feel free to reach out to me via the contact form on my GitHub pages website at kollintrujillo@live.com or at the form on my website [KollinRT.github.io](https://kollinrt.github.io/).

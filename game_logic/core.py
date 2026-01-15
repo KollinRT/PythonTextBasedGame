@@ -1,513 +1,764 @@
+"""High level game logic including movement, encounters and combat.
+
+The original project kept the bulk of the game flow in a long procedural module.
+For the new requirements we expose a ``GameEngine`` that can be used by both the
+text interface and the pygame user interface.  The engine is intentionally
+stateless regarding input handling – callers provide commands and receive events
+that describe what happened during the turn.  This makes the code easy to test
+and enables richer front-ends in the future.
+"""
+
+from __future__ import annotations
+
 import random
-from classes.classes import *
-from maps.beginner_map import G
-from customErrors import *
-import networkx as nx 
-# from .main import myCharacter
+from dataclasses import dataclass, field
+import uuid
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-# Condition for the game
-isCharacterAlive = True
-movePath = [] # global for allowance of storage of movePath 
-initPos = 'A0' # initial start of map
-movePath.append(initPos)
-ableToCast = [] # For mages to be able to cast. See chooseSpell()
-
-# Characters Initialized
-# myCharacter = Mage("Kollin", 1, 15, 20, 50)
-enemy = Enemy("enemy", 1, 10, 5)
-
-# Some actions that can be carried out
-def startGame():
-    global myCharacter
-    print("Welcome to the game!")
-    classChoices = ["Player", "Mage"]
-    playerClass = input('Are you going to be a Player or a Mage?: ')
-    while playerClass not in classChoices:
-        print("Please reselect your class!")
-        playerClass = input('Are you going to be a Player or a Mage?: ')
-    playerName = input("What is your character's name?: ")
-    print(f"{playerName} is a {playerClass}")
-    if playerClass == "Player":
-        myCharacter = Player(playerName, 1, 100, 50, critDmg=125)
-    elif playerClass == "Mage":
-        myCharacter = Mage(playerName, 1, 100, 15, 50, critDmg=125)
-    return myCharacter
-
-def roll():
-    global decider
-    decider = int(random.random()*100)
-    return decider
-
-def determineBattleOrder(player, enemy):
-    roll()
-    global turn_order
-    turn_order = []
-    if decider > 50:
-        # print(decider)
-        print("You go first!")
-        turn_order = [player, enemy]
-        print(f"[{turn_order[0].name}, {turn_order[1].name}]")
-        return turn_order
-    else:
-        # print(decider)
-        print("Enemy goes first!")
-        turn_order = [enemy, player]
-        print(f"[{turn_order[0].name}, {turn_order[1].name}]")
-        return turn_order
+from classes.classes import Cleric, Enemy, Mage, Player, Ranger, Item
+from game_logic.map_generation import MapBlueprint, blueprint_from_graph, generate_blueprint
+from game_logic.persistence import PersistenceManager, default_db_path
+from game_logic.simple_graph import Graph
+from items.items import FishingCatch, Shop, go_fishing, random_loot_drop
+from maps.beginner_map import create_beginner_map
+from maps.intermediate_map import create_intermediate_map
+from maps.advanced_map import create_advanced_map
 
 
-def initCombat(player, enemy):
-    # If we go first
-    if turn_order[0] == player:
-        print("Hell yes!")
-        print("This from initCombat()")
+def roll(rng: Optional[random.Random] = None) -> int:
+    """Return a percentile roll between 0 and 100 (inclusive)."""
 
-    # If enemy goes first
-    elif turn_order[0] == enemy:
-        print("You too slow!")
-        print("This from initCombat()")
+    rng = rng or random
+    return int(rng.random() * 100)
 
 
-def start_battle(player, enemy):
-    """
-    Takes two entities (typically an instance of Player and Enemy) and initiates and carries out the combat phase
-    """
-    # determine turn order
-    determineBattleOrder(player, enemy)
+def dealDamage(player: Player, enemy: Enemy, rng: Optional[random.Random] = None) -> int:
+    """Deal physical damage from ``player`` to ``enemy`` and return the amount."""
 
-    # check turn order and then initiate combat
-    initCombat(player, enemy)
-
-    # Decide Combat Logic!
-    bothAlive = True
-    # battle shit...
-    while bothAlive == True:
-
-        battling(player, enemy)
-        
-        if player.hp <= 0:
-            print(f"{player.name} has died!")
-            bothAlive = False
-            global isCharacterAlive
-            isCharacterAlive = False
-            print("Game Over! (Time to cancel)")
-            # return isCharacterAlive
-
-        elif enemy.hp <= 0:
-            print(f"{player.name} has killed {enemy.name}")
-            print(f"Remaining HP {player.hp}")
-            enemy.regenHP()
-            bothAlive = False
-            player.exp += enemy.expWorth
-            player.gp += enemy.gpWorth 
-            player.checkLevel()
-            print(player.level)
-            promptMovement()
-
-    # Transition back to moving interaction! How to do so? Need to create a function!
-    # print("We get to transition back to moving!")
-
-def battling(player, enemy):
-    """
-    Takes two instances (typically an instance of Player and Enemy) and carries out the logic of the combat phase
-    """
-    # First calculate difference in damage from enemy levels
-    # print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
-    # print(f"[{turn_order[0].name}, {turn_order[1].name}]")
-    
-    # if Mage class
-    if isinstance(player, Mage):
-        # You go first/next
-        if turn_order[0] == player:
-            action = input("What action would you like to do? \n 0)'attack' \n 1)'magic' \n ")
-            if action == 'attack' or action == str(0):
-                dealDamage(player, enemy)
-                print(enemy.hp)
-                turn_order.reverse()
-                print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
-            elif action == 'magic' or action == str(1):
-                dealMagicDamage(player, enemy)
-                print(enemy.hp)
-                print(f"remaining mp {player.mp}")
-                turn_order.reverse()
-                print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
-        # Enemy goes first/next
-        elif turn_order[0] == enemy:
-            enemyDmg(enemy, player)
-            turn_order.reverse()
-            print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
-    # if Player base class
-    elif isinstance(player, Player):
-        if turn_order[0] == player:
-            action = input("What action would you like to do? \n 0) attack \n ")
-            if action == str(0):
-                dealDamage(player, enemy)
-                print(enemy.hp)
-                turn_order.reverse()
-                print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
-
-        elif turn_order[0] == enemy:
-            enemyDmg(enemy, player)
-            turn_order.reverse()
-            print(f"The turn order is [{turn_order[0].name}, {turn_order[1].name}]")
+    rng = rng or random
+    damage = player.dmg
+    if rng.random() < player.crit_chance:
+        damage = int(damage * player.crit_dmg)
+    enemy.take_damage(damage)
+    return damage
 
 
-def dealDamage(player, enemy):
-    """
-    Functions takes an instance of a Player and Enemy and deals with the logic behind crits or weak hits.
-    """
-    # Determine hp and figure out damage dealt!
+@dataclass(slots=True)
+class BattleEvent:
+    """A single action performed during a battle."""
 
-    # roll() # I don't think this is needed...
-
-    # Roll for Crit Hit Chance
-    if roll() > 80:
-        print("Critical Hit!")
-        enemy.hp = enemy.hp - player.dmg*player.critDmg
-        # not sure if this works...
-        print(
-            f"{player.name} hit {enemy.name} for {player.dmg*player.critDmg}. Health remaining: {enemy.hp}")
-    elif roll() < 80 and roll() > 20:
-        enemy.hp = enemy.hp - player.dmg
-        print(f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
-    else:
-        print("Swing a lil harder!")
-        enemy.hp = enemy.hp - player.dmg * 0.75
-        print(f"{player.name} hit {enemy.name} for {player.dmg*0.75}. Health remaining: {enemy.hp}")
-
-def chooseSpell(player):
-    skills = {'fireball': {'level': 1, 'MPCost': 3, "Damage": 12},
-              'gust': {'level': 5, 'MPCost': 6, "Damage": 22}}
-    # Check level for spell availability
-    level = player.level
-    for ability in skills:
-        levelReq = skills[ability]['level']
-        print(levelReq)
-        if player.level >= levelReq:
-            print("okay to cast!")
+    source: str
+    target: str
+    description: str
 
 
-def dealMagicDamage(player, enemy):
-    """
-    Takes an instance of Player(Mage subclass) and Enemy and deals with the combat logic for the Mage class.
-    """
-    # Determine hp and figure out damage dealt!
-    if isinstance(player, Mage):
-        mp = player.mp
-        player.checkSpellLevels()
-        for idx, spell in enumerate(player.ableToCast):
-            if player.mp >= player.skills[spell]['MPCost']:
-                print(f"{idx}) {spell} MPCost: {player.skills[spell]['MPCost']}")
-        print("3) attack")
-        spell = input("Which spell would you like to cast?")
-        if spell == "fireball" or spell == str(0):
-            if player.mp >= player.skills['fireball']['MPCost']:
-            # Roll for Crit Hit Chance
-                if roll() > 80:
-                    print("Critical Hit!")
-                    enemy.hp = enemy.hp - player.skills['fireball']['Damage']*player.critDmg
-                    player.mp -= player.skills['fireball']['MPCost']
-                    # not sure if this works...
-                    print(f"{player.name} hit {enemy.name} for {player.skills['fireball']['Damage']}. Health remaining: {enemy.hp}")
-                elif roll() < 80 and roll() > 20:
-                    enemy.hp = enemy.hp - player.skills['fireball']['Damage']
-                    player.mp -= player.skills['fireball']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['fireball']['Damage']}. Health remaining: {enemy.hp}")
+@dataclass(slots=True)
+class BattleResult:
+    """Outcome of a battle resolution."""
+
+    xp_gained: int = 0
+    gold_gained: int = 0
+    loot: List[str] = field(default_factory=list)
+    events: List[BattleEvent] = field(default_factory=list)
+
+
+@dataclass
+class Battle:
+    """Manage turn based combat supporting multiple enemies."""
+
+    players: List[Player]
+    enemies: List[Enemy]
+    rng: random.Random = field(default_factory=random.Random)
+    events: List[BattleEvent] = field(default_factory=list)
+    _turn_queue: List[Tuple[float, Union[Player, Enemy]]] = field(default_factory=list)
+    _turn_index: int = 0
+
+    def is_over(self) -> bool:
+        return not any(p.is_alive() for p in self.players) or not any(e.is_alive() for e in self.enemies)
+
+    def _living_players(self) -> List[Player]:
+        return [player for player in self.players if player.is_alive()]
+
+    def _living_enemies(self) -> List[Enemy]:
+        return [enemy for enemy in self.enemies if enemy.is_alive()]
+
+    def _collect_combatants(self) -> List[Union[Player, Enemy]]:
+        return self._living_players() + self._living_enemies()
+
+    def _roll_initiative(self) -> None:
+        combatants = self._collect_combatants()
+        self._turn_queue = sorted(
+            [
+                (
+                    self.rng.random() + getattr(combatant, "level", 1) * 0.01,
+                    combatant,
+                )
+                for combatant in combatants
+            ],
+            key=lambda entry: entry[0],
+            reverse=True,
+        )
+        self._turn_index = 0
+
+    def current_actor(self) -> Optional[Union[Player, Enemy]]:
+        if self.is_over():
+            return None
+        if not self._turn_queue or self._turn_index >= len(self._turn_queue):
+            self._roll_initiative()
+        while self._turn_queue:
+            _, combatant = self._turn_queue[self._turn_index]
+            if combatant.is_alive():
+                return combatant
+            self._turn_index += 1
+            if self._turn_index >= len(self._turn_queue):
+                self._roll_initiative()
+        return None
+
+    def advance_turn(self) -> None:
+        if not self._turn_queue:
+            self._roll_initiative()
+            return
+        self._turn_index += 1
+        if self._turn_index >= len(self._turn_queue):
+            self._roll_initiative()
+
+    def ensure_initiative(self) -> None:
+        if not self._turn_queue:
+            self._roll_initiative()
+
+    def player_action(
+        self,
+        player: Player,
+        action: Tuple[str, Optional[str], Optional[int], Optional[str]] | None = None,
+    ) -> Optional[BattleEvent]:
+        """Execute a player's action.
+
+        ``action`` is a tuple ``(kind, name, target_index, target_side)`` where ``kind``
+        is one of ``"attack"``, ``"spell"`` or ``"ability"``.  ``target_side``
+        distinguishes between ``"enemy"`` and ``"ally"`` targets. When ``action`` is
+        ``None`` the player performs a default basic attack against the first living
+        enemy.
+        """
+
+        if not player.is_alive():
+            return
+        living_enemies = self._living_enemies()
+        if not living_enemies:
+            return
+        kind = "attack"
+        name: Optional[str] = None
+        target_index = 0
+        target_side = "enemy"
+        if action:
+            kind = action[0]
+            if len(action) > 1:
+                name = action[1]
+            if len(action) > 2 and action[2] is not None:
+                target_index = action[2]
+            if len(action) > 3 and action[3]:
+                target_side = action[3] or "enemy"
+        target_index = target_index or 0
+
+        if kind == "spell" and isinstance(player, Mage) and name:
+            spell = player.spells.get(name)
+            if spell and getattr(spell, "healing", 0) > 0:
+                allies = self._living_players()
+                ally = player
+                if target_side in {"ally", "self"} and allies:
+                    if target_side == "self":
+                        ally = player
+                    else:
+                        index = max(0, min(target_index, len(allies) - 1))
+                        ally = allies[index]
+                healed = player.cast_spell(name, ally)
+                description = (
+                    f"casts {name} restoring {healed} HP to {ally.name} "
+                    f"({ally.hp}/{ally.max_hp} HP)"
+                )
+                target = ally
+            else:
+                if not living_enemies:
+                    return
+                target_index = max(0, min(target_index, len(living_enemies) - 1))
+                target = living_enemies[target_index]
+                damage = player.cast_spell(name, target)
+                description = f"casts {name} for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+        elif kind == "ability" and hasattr(player, "use_ability") and name:
+            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            target = living_enemies[target_index]
+            damage, extra = player.use_ability(name, target)  # type: ignore[attr-defined]
+            description = f"{extra} ({target.hp}/{target.max_hp} HP left)"
+        else:
+            target_index = max(0, min(target_index, len(living_enemies) - 1))
+            target = living_enemies[target_index]
+            damage = player.attack_damage()
+            target.take_damage(damage)
+            description = f"attacks for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+        event = BattleEvent(player.name, target.name, description)
+        self.events.append(event)
+        return event
+
+    def enemy_action(self, enemy: Enemy) -> Optional[BattleEvent]:
+        if not enemy.is_alive():
+            return None
+        players = self._living_players()
+        if not players:
+            return None
+        target = enemy.decide_target(players)
+        damage = enemy.attack_damage()
+        target.take_damage(damage)
+        description = f"attacks for {damage} damage ({target.hp}/{target.max_hp} HP left)"
+        event = BattleEvent(enemy.name, target.name, description)
+        self.events.append(event)
+        return event
+
+    def resolve(
+        self,
+        player_actions: Optional[Dict[str, Tuple[str, Optional[str], Optional[int], Optional[str]]]] = None,
+    ) -> BattleResult:
+        """Resolve the battle until one side is defeated."""
+
+        result = BattleResult(events=list(self.events))
+        self.ensure_initiative()
+        while not self.is_over():
+            actor = self.current_actor()
+            if actor is None:
+                break
+            if isinstance(actor, Player):
+                action = None
+                if player_actions and actor.name in player_actions:
+                    action = player_actions[actor.name]
+                event = self.player_action(actor, action)
+                if event:
+                    result.events.append(event)
+            else:
+                event = self.enemy_action(actor)
+                if event:
+                    result.events.append(event)
+            self.advance_turn()
+        if not any(enemy.is_alive() for enemy in self.enemies):
+            for enemy in self.enemies:
+                result.xp_gained += enemy.exp_worth
+                result.gold_gained += enemy.gp_worth
+        return result
+
+    def build_result(self) -> BattleResult:
+        result = BattleResult(events=list(self.events))
+        if not any(enemy.is_alive() for enemy in self.enemies):
+            for enemy in self.enemies:
+                result.xp_gained += enemy.exp_worth
+                result.gold_gained += enemy.gp_worth
+        return result
+
+
+@dataclass
+class NodeEvent:
+    kind: str
+    payload: Optional[str] = None
+    details: List[str] = field(default_factory=list)
+    game_over: bool = False
+
+
+class GameEngine:
+    """High level orchestrator for world traversal and encounters."""
+
+    def __init__(
+        self,
+        rng: Optional[random.Random] = None,
+        *,
+        persistence: Optional[PersistenceManager] = None,
+        db_path: Optional[str] = None,
+    ) -> None:
+        self.rng = rng or random.Random()
+        self.persistence = persistence or PersistenceManager(db_path or default_db_path())
+        base_maps: Dict[str, Graph] = {
+            "beginner": create_beginner_map(),
+            "intermediate": create_intermediate_map(),
+            "advanced": create_advanced_map(),
+        }
+        self.maps: Dict[str, Graph] = dict(base_maps)
+        friendly_names = {
+            "beginner": "Beginners' Path",
+            "intermediate": "Winding Expanse",
+            "advanced": "Frontier Bastion",
+        }
+        self.map_blueprints: Dict[str, MapBlueprint] = {}
+        for key, graph in base_maps.items():
+            blueprint = blueprint_from_graph(key, graph)
+            if key in friendly_names:
+                blueprint.name = friendly_names[key]
+            self.map_blueprints[key] = blueprint
+        for blueprint in self.persistence.iter_maps():
+            self.maps[blueprint.key] = blueprint.to_graph()
+            self.map_blueprints[blueprint.key] = blueprint
+        self.current_map_key = "beginner"
+        self.active_map = self.maps[self.current_map_key]
+        self.current_node = "A0"
+        self.hero: Optional[Player] = None
+        self.player_party: List[Player] = []
+        self.shop = Shop.default()
+        self.event_log: List[str] = []
+        self.battle: Optional[Battle] = None
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def in_battle(self) -> bool:
+        return self.battle is not None
+
+    def _format_event(self, event: BattleEvent) -> str:
+        return f"{event.source} -> {event.target}: {event.description}"
+
+    def _format_enemy_status(self, index: int, enemy: Enemy) -> str:
+        status = "defeated" if not enemy.is_alive() else f"{enemy.hp}/{enemy.max_hp} HP"
+        return f"{index}. {enemy.name} - {status}"
+
+    def list_player_actions(self) -> List[Tuple[str, Optional[str]]]:
+        if not self.battle:
+            return []
+        actor = self.battle.current_actor()
+        if not isinstance(actor, Player):
+            return []
+        player = actor
+        actions: List[Tuple[str, Optional[str]]] = [("attack", None)]
+        if isinstance(player, Mage):
+            actions.extend(("spell", spell.name) for spell in player.available_spells())
+        if hasattr(player, "available_abilities"):
+            abilities = player.available_abilities()  # type: ignore[attr-defined]
+            actions.extend(("ability", ability) for ability in abilities)
+        return actions
+
+    def _refresh_party(self) -> None:
+        if not self.hero:
+            self.player_party = []
+            return
+        party: List[Player] = [self.hero]
+        for follower in self.hero.following:
+            if follower not in party:
+                party.append(follower)
+        self.player_party = party
+
+    def _party_level(self) -> int:
+        if not self.player_party:
+            return 1
+        return max(member.level for member in self.player_party)
+
+    # ------------------------------------------------------------------
+    # Game setup
+    # ------------------------------------------------------------------
+    def start_new_game(self, player: Player) -> None:
+        self.hero = player
+        self._refresh_party()
+        self.current_map_key = "beginner"
+        self.active_map = self.maps[self.current_map_key]
+        self.current_node = "A0"
+        self.event_log.clear()
+        map_info = self.map_blueprints.get(self.current_map_key)
+        map_label = map_info.name if map_info else self.current_map_key
+        self.event_log.append(f"{player.name} enters {map_label} at {self.current_node}.")
+
+    # ------------------------------------------------------------------
+    # Movement
+    # ------------------------------------------------------------------
+    def neighbors(self) -> List[str]:
+        return list(self.active_map.neighbors(self.current_node))
+
+    def move_to(self, node: str) -> List[NodeEvent]:
+        if self.battle:
+            raise RuntimeError("Cannot move while a battle is active")
+        if node not in self.neighbors():
+            raise ValueError(f"Cannot move to {node} from {self.current_node}")
+        self.current_node = node
+        self.event_log.append(f"Moved to {node}")
+        return self._handle_node()
+
+    # ------------------------------------------------------------------
+    # Node interactions
+    # ------------------------------------------------------------------
+    def _handle_node(self) -> List[NodeEvent]:
+        node_data = self.active_map.nodes[self.current_node]
+        events: List[NodeEvent] = []
+        if node_data.get("encounter"):
+            if self.rng.random() < 0.35:
+                battle_event = self._start_battle()
+                events.append(battle_event)
+                return events
+        if node_data.get("shop"):
+            events.append(NodeEvent("shop"))
+        if node_data.get("fishing"):
+            catch = self.handle_fishing()
+            events.append(NodeEvent("fishing", payload=f"Caught {catch.name}"))
+        if node_data.get("city"):
+            events.append(NodeEvent("city", payload="Safe to rest"))
+        ally_blueprint = node_data.get("ally")
+        if ally_blueprint and self.hero:
+            ally = self._spawn_ally(ally_blueprint)
+            events.append(self.recruit_ally(ally))
+            node_data.pop("ally", None)
+        if transition := node_data.get("transition"):
+            transition_event = self.transition_map(str(transition))
+            if transition == "auto" and transition_event.details:
+                node_data["transition"] = transition_event.details[0]
+            events.append(transition_event)
+        return [event for event in events if event]
+
+    # ------------------------------------------------------------------
+    # Combat
+    # ------------------------------------------------------------------
+    def _generate_enemies(self) -> List[Enemy]:
+        base_level = max(player.level for player in self.player_party)
+        count = self.rng.randint(1, 3)
+        enemies = []
+        for idx in range(count):
+            level = max(1, base_level + self.rng.randint(-1, 1))
+            hp = 40 + level * 10
+            dmg = 5 + level * 3
+            enemy = Enemy(name=f"Goblin {idx+1}", level=level, hp=hp, dmg=dmg, exp_worth=150 + level * 25, gp_worth=8 + level * 3)
+            enemies.append(enemy)
+        return enemies
+
+    def _start_battle(self) -> NodeEvent:
+        self._refresh_party()
+        enemies = self._generate_enemies()
+        for player in self.player_party:
+            if isinstance(player, Ranger):
+                player.reset_focus()
+        self.battle = Battle(self.player_party, enemies, rng=self.rng)
+        self.battle.ensure_initiative()
+        summary = "Encountered " + ", ".join(enemy.name for enemy in enemies)
+        details = [self._format_enemy_status(idx, enemy) for idx, enemy in enumerate(enemies, 1)]
+        opener = self._process_auto_turns()
+        if opener:
+            opener_lines = [self._format_event(evt) for evt in opener]
+            details.extend(opener_lines)
+            self.event_log.extend(opener_lines)
+        next_actor = self.battle.current_actor() if self.battle else None
+        if isinstance(next_actor, Player):
+            details.append(f"Awaiting command for {next_actor.name}")
+        self.event_log.append(summary)
+        return NodeEvent("battle", payload=summary, details=details)
+
+    def perform_player_action(
+        self,
+        action: str,
+        *,
+        target_index: int = 0,
+        name: Optional[str] = None,
+        actor_name: Optional[str] = None,
+        target_kind: str = "enemy",
+        target_name: Optional[str] = None,
+    ) -> NodeEvent:
+        if not self.battle:
+            raise RuntimeError("No active battle")
+        battle = self.battle
+        actor = battle.current_actor()
+        if actor is None:
+            raise RuntimeError("No combatant available to act")
+
+        if actor_name:
+            requested = actor_name.lower()
+            target_player: Optional[Player] = None
+            for member in battle.players:
+                if member.name.lower() == requested:
+                    target_player = member
+                    break
+            if not target_player and requested in {"pet", "companion"}:
+                for member in battle.players:
+                    if getattr(member, "role", "") == "pet":
+                        target_player = member
+                        break
+            if not target_player:
+                raise ValueError(f"No party member named '{actor_name}'")
+            if target_player is not actor:
+                raise ValueError(f"It is {actor.name}'s turn, not {target_player.name}'s")
+            player = target_player
+        else:
+            if not isinstance(actor, Player):
+                raise RuntimeError("It is not a player's turn")
+            player = actor
+        events: List[BattleEvent] = []
+
+        action = action.lower()
+
+        if action == "potion":
+            if not name:
+                raise ValueError("Potion name required")
+            player.use_potion(name)
+            description = f"uses {name} ({player.hp}/{player.max_hp} HP)"
+            if isinstance(player, Mage):
+                description += f" ({player.mp}/{player.max_mp} MP)"
+            event = BattleEvent(player.name, player.name, description)
+            battle.events.append(event)
+            events.append(event)
+        else:
+            living_enemies = battle._living_enemies()
+            living_allies = battle._living_players()
+            normalized_target = (target_kind or "enemy").lower()
+            requested_name = target_name
+            if normalized_target == "self":
+                normalized_target = "ally"
+                requested_name = requested_name or player.name
+            if normalized_target == "ally":
+                if not living_allies:
+                    raise ValueError("No allies available to target")
+                if requested_name:
+                    match = next(
+                        (idx for idx, member in enumerate(living_allies) if member.name.lower() == requested_name.lower()),
+                        None,
+                    )
+                    if match is None:
+                        raise ValueError(f"No ally named '{requested_name}'")
+                    target_index = match
                 else:
-                    print("Swing a lil harder!")
-                    enemy.hp = enemy.hp - player.skills['fireball']['Damage'] * 0.75
-                    player.mp -= player.skills['fireball']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['fireball']['Damage']}. Health remaining: {enemy.hp}")
-        
-        elif spell == 'gust' or spell == str(1):
-            if player.mp >= player.skills['gust']['MPCost']:
-                # Roll for Crit Hit Chance
-                if roll() > 80:
-                    print("Critical Hit!")
-                    enemy.hp = enemy.hp - player.skills['gust']['Damage']*player.critDmg
-                    player.mp -= player.skills['gust']['MPCost']
-                    # not sure if this works...
-                    print(f"{player.name} hit {enemy.name} for {player.skills['gust']['Damage']}. Health remaining: {enemy.hp}")
-                elif roll() < 80 and roll() > 20:
-                    enemy.hp = enemy.hp - player.skills['gust']['Damage']
-                    player.mp -= player.skills['gust']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['gust']['Damage']}. Health remaining: {enemy.hp}")
+                    target_index = max(0, min(target_index, len(living_allies) - 1))
+            else:
+                if not living_enemies:
+                    return self._finalize_battle(events)
+                if requested_name:
+                    match = next(
+                        (idx for idx, enemy in enumerate(living_enemies) if enemy.name.lower() == requested_name.lower()),
+                        None,
+                    )
+                    if match is None:
+                        raise ValueError(f"No enemy named '{requested_name}'")
+                    target_index = match
                 else:
-                    print("Swing a lil harder!")
-                    enemy.hp = enemy.hp - player.skills['gust']['Damage'] * 0.75
-                    player.mp -= player.skills['gust']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['gust']['Damage']}. Health remaining: {enemy.hp}")
-        
-        elif spell == 'blizzard' or spell == str(2):
-            if player.mp >= player.skills['blizzard']['MPCost']:
-                # Roll for Crit Hit Chance
-                if roll() > 80:
-                    print("Critical Hit!")
-                    enemy.hp = enemy.hp - player.skills['blizzard']['Damage']*player.critDmg
-                    player.mp -= player.skills['blizzard']['MPCost']
-                    # not sure if this works...
-                    print(f"{player.name} hit {enemy.name} for {player.skills['blizzard']['Damage']}. Health remaining: {enemy.hp}")
-                elif roll() < 80 and roll() > 20:
-                    enemy.hp = enemy.hp - player.skills['blizzard']['Damage']
-                    player.mp -= player.skills['blizzard']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['blizzard']['Damage']}. Health remaining: {enemy.hp}")
-                else:
-                    print("Swing a lil harder!")
-                    enemy.hp = enemy.hp - player.skills['blizzard']['Damage'] * 0.75
-                    player.mp -= player.skills['blizzard']['MPCost']
-                    print(f"{player.name} hit {enemy.name} for {player.skills['blizzard']['Damage']}. Health remaining: {enemy.hp}")
-        if spell == 'attack' or spell == str(3):
-            if roll() > 80:
-                print("Critical Hit!")
-                enemy.hp = enemy.hp - player.dmg*player.critDmg
-                # not sure if this works...
-                print(
-                    f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
-            elif roll() < 80 and roll() > 20:
-                enemy.hp = enemy.hp - player.dmg
-                print(
-                    f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
+                    target_index = max(0, min(target_index, len(living_enemies) - 1))
+            if action == "spell" and not isinstance(player, Mage):
+                raise ValueError("This character cannot cast spells")
+            if action == "ability" and not hasattr(player, "use_ability"):
+                raise ValueError("No abilities available")
+            normalized_name = name.lower() if name else None
+            descriptor = (action, normalized_name, target_index, normalized_target)
+            event = battle.player_action(player, descriptor)
+            if event:
+                events.append(event)
+
+        if battle.is_over():
+            return self._finalize_battle(events)
+
+        battle.advance_turn()
+        enemy_events = self._process_auto_turns()
+        events.extend(enemy_events)
+        if battle.is_over():
+            return self._finalize_battle(events)
+
+        details = [self._format_event(evt) for evt in events]
+        if details:
+            self.event_log.extend(details)
+        next_actor = battle.current_actor()
+        if isinstance(next_actor, Player):
+            details.append(f"Awaiting command for {next_actor.name}")
+        return NodeEvent("battle", payload="Battle continues", details=details)
+
+    def _process_auto_turns(self) -> List[BattleEvent]:
+        if not self.battle:
+            return []
+        events: List[BattleEvent] = []
+        self.battle.ensure_initiative()
+        while not self.battle.is_over():
+            actor = self.battle.current_actor()
+            if isinstance(actor, Enemy):
+                event = self.battle.enemy_action(actor)
+                if event:
+                    events.append(event)
+                self.battle.advance_turn()
             else:
-                print("Swing a lil harder!")
-                enemy.hp = enemy.hp - player.dmg * 0.75
-                print(
-                    f"{player.name} hit {enemy.name} for {player.dmg}. Health remaining: {enemy.hp}")
-    else:
-        print("Player is not a mage!")
+                break
+        return events
 
-def enemyDmg(enemy, player):
-    player.hp = player.hp - enemy.dmg
-    print(f"{enemy.name} hit {player.name} for {enemy.dmg}. Health remaining: {player.hp}")
-    # roll into deal dealDamage and let the enemy also do critical damage!!!
-    # maybe change enemy into opponent here? But enemy is the class name so it is easier to think about also... So, shrug?
+    def _finalize_battle(self, round_events: List[BattleEvent]) -> NodeEvent:
+        if not self.battle:
+            raise RuntimeError("No battle to finalize")
+        battle = self.battle
+        event_lines = [self._format_event(event) for event in round_events]
+        if event_lines:
+            self.event_log.extend(event_lines)
+        result = battle.build_result()
+        players_alive = any(player.is_alive() for player in self.player_party)
+        enemies_alive = any(enemy.is_alive() for enemy in battle.enemies)
+        victory = players_alive and not enemies_alive
+        details = self._record_battle_outcome(result, victory=victory, recent_events=event_lines)
+        summary = "Party was defeated" if not players_alive else f"Defeated {len(battle.enemies)} enemies"
+        self.event_log.append(summary)
+        self.battle = None
+        return NodeEvent("battle", payload=summary, details=details, game_over=not players_alive)
+
+    def _record_battle_outcome(
+        self,
+        result: BattleResult,
+        *,
+        victory: bool,
+        recent_events: Optional[List[str]] = None,
+    ) -> List[str]:
+        details: List[str] = []
+        if recent_events:
+            details.extend(recent_events)
+        elif result.events:
+            event_lines = [self._format_event(event) for event in result.events]
+            details.extend(event_lines)
+            if event_lines:
+                self.event_log.extend(event_lines)
+        if not victory:
+            return details
+
+        if result.xp_gained:
+            for player in self.player_party:
+                player.gain_exp(result.xp_gained)
+            details.append(f"Gained {result.xp_gained} XP")
+            self.event_log.append(f"Gained {result.xp_gained} XP")
+        if result.gold_gained:
+            for player in self.player_party:
+                player.add_gold(result.gold_gained)
+            details.append(f"Collected {result.gold_gained} gold")
+            self.event_log.append(f"Collected {result.gold_gained} gold")
+        if self.player_party:
+            loot_item = random_loot_drop(max(player.level for player in self.player_party))
+            self.player_party[0].add_item(loot_item)
+            loot_message = f"Looted {loot_item.name}"
+            details.append(loot_message)
+            self.event_log.append(loot_message)
+        return details
+
+    # ------------------------------------------------------------------
+    # Fishing and shop interactions
+    # ------------------------------------------------------------------
+    def handle_fishing(self) -> FishingCatch:
+        player = self.player_party[0]
+        catch = go_fishing(player.level)
+        player.add_gold(catch.gold_reward)
+        player.gain_exp(catch.xp_reward)
+        self.event_log.append(f"Fishing success: {catch.name}")
+        return catch
+
+    def purchase_item(self, item_name: str) -> Item:
+        player = self.player_party[0]
+        item = self.shop.purchase(item_name, player.gp)
+        player.spend_gold(item.value)
+        player.add_item(item)
+        self.event_log.append(f"Purchased {item_name}")
+        return item
+
+    # ------------------------------------------------------------------
+    # Map transitions
+    # ------------------------------------------------------------------
+    def transition_map(self, key: str) -> NodeEvent:
+        if key == "auto":
+            key = self._create_generated_map()
+        if key not in self.maps:
+            blueprint = self.persistence.load_map(key)
+            if not blueprint:
+                raise KeyError(f"Unknown map '{key}'")
+            self.maps[key] = blueprint.to_graph()
+            self.map_blueprints[key] = blueprint
+        self.current_map_key = key
+        self.active_map = self.maps[key]
+        self.current_node = next(iter(self.active_map.nodes))
+        blueprint = self.map_blueprints.get(key) or blueprint_from_graph(key, self.active_map)
+        self.map_blueprints[key] = blueprint
+        self.event_log.append(f"Traveled to {blueprint.name} map")
+        return NodeEvent("transition", payload=blueprint.name, details=[key])
+
+    def _create_generated_map(self, *, size: Optional[int] = None) -> str:
+        map_size = size or self.rng.randint(9, 15)
+        key = f"frontier_{uuid.uuid4().hex[:6]}"
+        blueprint = generate_blueprint(
+            key,
+            size=map_size,
+            base_level=self._party_level(),
+            rng=self.rng,
+        )
+        self.maps[key] = blueprint.to_graph()
+        self.map_blueprints[key] = blueprint
+        self.persistence.save_map(blueprint)
+        return key
+
+    def generate_new_map(self, *, size: Optional[int] = None) -> NodeEvent:
+        key = self._create_generated_map(size=size)
+        blueprint = self.map_blueprints[key]
+        message = f"Discovered {blueprint.name} ({key})"
+        self.event_log.append(message)
+        return NodeEvent("map", payload=message)
+
+    def _spawn_ally(self, blueprint: Dict[str, object]) -> Player:
+        class_key = str(blueprint.get("class", "player"))
+        name = str(blueprint.get("name", "Ally"))
+        desired_level = max(1, self._party_level() + int(blueprint.get("level_bonus", 0)))
+        ally = startGame(name, class_key)
+        while ally.level < desired_level:
+            threshold = ally.exp_to_level[ally.level] - ally.exp + 1
+            ally.gain_exp(threshold)
+        ally.hp = ally.max_hp
+        if isinstance(ally, Mage):
+            ally.mp = ally.max_mp
+        setattr(ally, "personality", blueprint.get("personality", "steady"))
+        return ally
+
+    def recruit_ally(self, ally: Player) -> NodeEvent:
+        if not self.hero:
+            raise RuntimeError("No hero available to recruit allies")
+        self.hero.add_follower(ally)
+        self._refresh_party()
+        message = f"{ally.name} joins the party!"
+        detail = f"Class: {ally.__class__.__name__}"
+        personality = getattr(ally, "personality", None)
+        details = [detail]
+        if personality:
+            details.append(f"Personality: {personality}")
+        self.event_log.append(message)
+        return NodeEvent("ally", payload=message, details=details)
+
+    def save_game(self, slot: str) -> None:
+        if not self.hero:
+            raise RuntimeError("No active game to save")
+        state = {
+            "hero": self.hero.to_dict(),
+            "map_key": self.current_map_key,
+            "current_node": self.current_node,
+            "event_log": self.event_log[-50:],
+            "shop": self.shop.to_dict(),
+        }
+        self.persistence.save_game(slot, state, map_key=self.current_map_key)
+
+    def list_saves(self) -> List[str]:
+        return self.persistence.list_saves()
+
+    def load_game(self, slot: str) -> None:
+        state = self.persistence.load_game(slot)
+        if not state:
+            raise KeyError(f"Save slot '{slot}' not found")
+        map_key = str(state.get("map_key", "beginner"))
+        if map_key not in self.maps:
+            blueprint = self.persistence.load_map(map_key)
+            if not blueprint:
+                raise KeyError(f"Map '{map_key}' missing for save '{slot}'")
+            self.maps[map_key] = blueprint.to_graph()
+            self.map_blueprints[map_key] = blueprint
+        self.current_map_key = map_key
+        self.active_map = self.maps[map_key]
+        self.current_node = str(state.get("current_node", next(iter(self.active_map.nodes))))
+        hero_data = state.get("hero")
+        if not hero_data:
+            raise ValueError("Save slot missing hero data")
+        hero = Player.from_dict(hero_data)  # type: ignore[arg-type]
+        self.hero = hero
+        self._refresh_party()
+        shop_data = state.get("shop")
+        if isinstance(shop_data, dict):
+            self.shop = Shop.from_dict(shop_data)
+        self.event_log = list(state.get("event_log", []))
+        self.battle = None
 
 
-def saveProgress():
-    # writing to a file that can then have a loadProgress to load into current env...
-    pass
+def startGame(player_name: str, player_class: str) -> Player:
+    """Factory used by the CLI entry point to create a player instance."""
 
+    player_class = player_class.lower()
+    if player_class == "mage":
+        return Mage(player_name, 1, 90, 45, 12)
+    if player_class == "ranger":
+        return Ranger(player_name, 1, 110, 14)
+    if player_class == "cleric":
+        return Cleric(player_name, 1, 95, 50, 11)
+    return Player(player_name, 1, 120, 15)
 
-def loadProgress():
-    pass
-
-
-def fishing():
-    # Fishing skill? Time start then input in time less then? 20% chance not to catch? Idk
-    # bigger if caught earlier??
-    pass
-
-
-def escape():
-    # combat escape
-    # think about breaking from the current loop of the battle and back to moving...
-    # add a percent chance?
-    pass
-
-
-def addToInv(player, name, level, dmg, slot):
-    if name in player.inventory:
-        raise ItemError("There is already an item with that name!")
-    if slot == 'w':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'weapon'}})
-    elif slot == 'a':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'armor'}})
-    elif slot == 's':
-        player.obtainItem(
-            {name: {'level': level, 'dmg': dmg, 'slot': 'shield'}})
-    
-
-def checkNeighbors(n1, n2):
-    if n2 in G[n1]:
-        return True
-# Woot woot! This works right here! Works?
-# then append this to nodeMove list then call a function that checks the label of the node moved to and if it one 
-# of the labeled 'special' nodes have it trigger a event!!
-def movement(n1,n2):
-    if checkNeighbors(n1,n2): # check that it is true
-        # print(G[n1])
-        # print("YASSS") # just a print statement to see that it works...
-        if isinstance(myCharacter, Mage):
-            if myCharacter.hp + 0.30*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP <= myCharacter.maxMP:
-                myCharacter.hp = myCharacter.maxHP
-                myCharacter.mp += 0.30*myCharacter.maxMP
-            elif myCharacter.hp + 0.30*myCharacter.maxHP <= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
-                myCharacter.hp += 0.30*myCharacter.maxHP # add 30% health regen per step TESTING... think about MP per step as well for mage 
-                myCharacter.mp = myCharacter.maxMP
-                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
-            elif myCharacter.hp + 0.30*myCharacter.maxHP >= myCharacter.maxHP and myCharacter.mp + 0.10*myCharacter.maxMP >= myCharacter.maxMP:
-                myCharacter.hp = myCharacter.maxHP
-                myCharacter.mp = myCharacter.maxMP
-                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
-            else:
-                myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
-                myCharacter.mp += 0.30*myCharacter.maxMP
-                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}; mp: {myCharacter.mp}/{myCharacter.maxMP}")
-        elif isinstance(myCharacter, Player):
-            if myCharacter.hp + 0.05*myCharacter.maxHP >= myCharacter.maxHP:
-                myCharacter.hp = myCharacter.maxHP
-                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}")
-            else:
-                myCharacter.hp += 0.05*myCharacter.maxHP # add 5% health regen per step... think about MP per step as well for mage
-                print(f"hp: {myCharacter.hp}/{myCharacter.maxHP}")
-                        
-        enemyExpGain(enemy)
-        movePath.append(n2)
-        return movePath # not sure if this'll wipe out the 'A1' or not....
-    
-def checkForEncounterNode(G): # do I need player, enemy in the params for this? hmm....
-    encounterZones = nx.get_node_attributes(G, "encounterArea")
-    for i in range(0, G.size()):
-        if f"A{i}" in encounterZones.keys():
-            print(f"['A{i}']", "nodes")
-            
-def checkForBattle(player, enemy):    
-    roll()
-    if decider > 70: # 30% chance to start combat on any node there is an encounter zone...
-        start_battle(player, enemy) # 30% chance to start combat! 
-            # think of how to get the (player, enemy) here...
-    else:
-        pass
-    
-def cycleNodeTypes(G, player, enemy):
-    nodeTypes = ['encounterArea', 'cityArea', 'shopArea', 'fishingArea']
-    zoneTypes = ['encounterZones', 'cityZones', 'shopZones', 'fishingZones']
-    for i in range(0,4):
-        zoneTypes[i] = nx.get_node_attributes(G, nodeTypes[i]) # get zone of node label
-    for j in range(0, G.size()): # iterate over the size of the graph
-        if f"A{j}" in movePath[-1]:
-            if movePath[-1] in list(zoneTypes[0].keys()) and movePath[-1] == f'A{j}':
-    #           print("This is encounter")
-                print(f"this is {list(zoneTypes[0].values())[0]}")
-                checkForBattle(myCharacter, enemy)
-            elif movePath[-1] in list(zoneTypes[1].keys()) and movePath[-1] == f'A{j}':
-    #             print("You are in the city!")
-                print(f"this is {list(zoneTypes[1].values())[0]}")
-                print(f"This is A{j}")
-            elif movePath[-1] in list(zoneTypes[2].keys()) and movePath[-1] == f'A{j}':
-                print("Feel free to shop around!")
-                print("ADD IN SHOP FEATURE!")
-                print(f"player has {player.gp} gp")
-                print("ADD IN SHOPPING STOCK!")
-                print(f"this is {list(zoneTypes[2].values())[0]}")
-            elif movePath[-1] in list(zoneTypes[3].keys()) and movePath[-1] == f'A{j}':
-                print("Drop a line and relax, it's fishing time!")# Think how to chain these functions together... wtf?
-                # can include a prompt to trigger fishing system with a function for fishing...
-                # ask yes/no if player would like to fish!
-                # create a fishing dictionary type system
-                print(f"this is {list(zoneTypes[3].values())[0]}")# Maybe over thinking this logic... Maybe separate them?
-
-# Then can combine these into a logic loop!
-
-# while on an encounter zone we can check for encounter node then check for battle condition?
-# then when we leave the encounter nodes we just switch it to false? Hmm?
-
-# then make a similar scanning for while in town and let it scan for each location? Generalize encounterZones
-# to be a parameter that we can also do cities with? Hmm?
-# specific nodes for certain implications in towns?
-
-# maybe make a list of particular areas? encounterArea, cityArea, etc... 
-# if in some particular one like if it is encounterArea we will trigger checkForBattle and shizz...
-# cityArea we will see if in there and also on a shop tile to be able to buy from a shop?
-# think about a currency from monsters... like create a gold gain from when battle ends?
-
-def promptMovement():
-    if isCharacterAlive == True:
-        if len(list(G[movePath[-1]])) == 1:
-            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]}")
-            choice = input("Where do you want to move?")
-            if choice == "0":
-                movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, enemy)
-            else:
-                print("not a valid choice, please reselect")
-        elif len(list(G[movePath[-1]])) == 2:
-            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]}")
-            choice = input("Where do you want to move?")
-            if choice == "0":
-                movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "1":
-    #             print((movePath[-1], list(G[movePath[-1]])[1]))
-                movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, enemy)
-            else:
-                print("not a valid choice, please reselect")
-        elif len(list(G[movePath[-1]])) == 3:
-            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]}")
-            choice = input("Where do you want to move?")
-            if choice == "0":
-                movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "1":
-                movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "2":
-                movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, enemy)
-            else:
-                print("not a valid choice, please reselect")
-        elif len(list(G[movePath[-1]])) == 4:
-            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]}")
-            choice = input("Where do you want to move?")
-            if choice == "0":
-                movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "1":
-                movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "2":
-                movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "3":
-                movement(movePath[-1], list(G[movePath[-1]])[3])
-                cycleNodeTypes(G, myCharacter, enemy)
-            else:
-                print("not a valid choice, please reselect")
-        elif len(list(G[movePath[-1]])) == 5:
-            print(f"current location: {movePath[-1]} \n 0) {list(G[movePath[-1]])[0]} \n 1) {list(G[movePath[-1]])[1]} \n 2) {list(G[movePath[-1]])[2]} \n 3) {list(G[movePath[-1]])[3]} \n 4) {list(G[movePath[-1]])[4]}")
-            choice = input("Where do you want to move?")
-            if choice == "0":
-                movement(movePath[-1], list(G[movePath[-1]])[0])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "1":
-                movement(movePath[-1], list(G[movePath[-1]])[1])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "2":
-                movement(movePath[-1], list(G[movePath[-1]])[2])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "3":
-                movement(movePath[-1], list(G[movePath[-1]])[3])
-                cycleNodeTypes(G, myCharacter, enemy)
-            elif choice == "4":
-                movement(movePath[-1], list(G[movePath[-1]])[4])
-                cycleNodeTypes(G, myCharacter, enemy)
-            else:
-                print("not a valid choice, please reselect")
-    else: 
-        pass
-
-### How to generate character levels. In the classes.py file I have levels 1,15 in the exp list.###
-
-# def generateLevels(lowLevel,highLevel):
-#     exp = -100
-#     expTotal = []
-#     for i in range(lowLevel,highLevel):
-#         exp += i*100
-#         expTotal.append(exp)
-# #       print(f"level {i}:, {expTotal[-1]}")
-#     return expTotal
-
-# Define a function for enemies level with passive time
-def enemyExpGain(enemy):
-    if enemy.level > 0 and enemy.level <= 5:
-        enemy.exp += 20
-        enemy.checkLevel()
-    elif enemy.level > 5 and enemy.level <= 10:
-        enemy.exp += 50
-        enemy.checkLevel()
-    else:
-        enemy.exp += 100
-        enemy.checkLevel()
-# updated enemy for basic level logic
