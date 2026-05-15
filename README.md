@@ -106,6 +106,10 @@ desired.
 ## Project layout
 
 ```
+├── api
+│   └── app.py            # FastAPI service for browser clients
+├── frontend
+│   └── src/main.jsx      # React client for online play
 ├── classes
 │   ├── classes.py        # Player, Enemy, Mage and supporting data classes
 │   └── items.py          # Simple helpers for consumables
@@ -138,3 +142,40 @@ pytest
 - Prefer dataclasses for new data structures and keep interactions deterministic
   where possible to simplify testing.
 
+
+## Web API and React client
+
+The game engine can now run as a JSON API for browser clients. This makes the
+existing adventure logic usable from a hosted React app while keeping the CLI and
+pygame front-ends intact.
+
+### Start the API
+
+```bash
+pip install -r requirements.txt
+uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+Useful endpoints include:
+
+- `POST /sessions` with `{ "name": "Hero", "player_class": "mage" }` to start a game.
+- `GET /sessions/{session_id}` to reconnect to an in-memory game session.
+- `POST /sessions/{session_id}/move` with `{ "destination": "A1" }` to explore.
+- `POST /sessions/{session_id}/battle/action` to submit battle choices.
+- `POST /sessions/{session_id}/save` and `/load` to use the existing SQLite save slots.
+
+Sessions are in-memory, so a simple single-server deployment is enough for a
+friends-and-family hosted game. For a larger public deployment, back the session
+store with Redis or persist active sessions in SQLite/Postgres before running
+multiple API workers.
+
+### Start the React client
+
+```bash
+cd frontend
+npm install
+VITE_API_BASE_URL=http://localhost:8000 npm run dev
+```
+
+Open the Vite URL, create a session, and share the session id with a friend so
+they can join the same running adventure through the API.
