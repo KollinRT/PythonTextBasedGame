@@ -64,6 +64,29 @@ Additional world commands include:
   random value).
 - `saves` – list the available save slots.
 
+
+### Browser/API mode
+
+```bash
+python main.py --mode web --host 0.0.0.0 --port 8000
+```
+
+This starts a dependency-free HTTP server that exposes a JSON API and serves the
+React browser client from `frontend/static`. Open `http://localhost:8000`, create
+a character, and share the generated `?session=<id>` link with friends so they
+can interact with the same in-memory adventure session. The API is intentionally
+small and host-friendly:
+
+- `POST /api/session` creates a game session with `{ "name": "Hero", "class": "mage" }`.
+- `GET /api/session?id=<session_id>` returns the latest state for a shared game.
+- `POST /api/move` moves to a neighboring node.
+- `POST /api/battle/action` performs `attack`, `spell`, `ability`, or `potion` actions.
+- `POST /api/shop/buy`, `POST /api/save`, `POST /api/load`, and `POST /api/generate` cover shop, persistence, and frontier-map actions.
+
+Active web sessions are stored in memory, while save slots still use the same
+SQLite database as text and pygame modes. For production hosting, run one server
+process behind HTTPS and set `ADVENTURE_DB` to a durable path.
+
 ### Pygame mode
 
 ```bash
@@ -117,6 +140,10 @@ desired.
 │   ├── beginner_map.py   # Introductory map
 │   ├── intermediate_map.py  # Mid-game routes
 │   └── advanced_map.py   # Frontier Bastion layout
+├── api
+│   └── server.py         # JSON API and static React host
+├── frontend
+│   └── static            # Browser client served by the API
 ├── ui
 │   └── pygame_ui.py      # Graphical front-end
 └── tests                 # Pytest suite

@@ -338,12 +338,18 @@ def run_text_mode() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Python Text Adventure")
-    parser.add_argument("--mode", choices=["text", "pygame"], default="text")
+    parser.add_argument("--mode", choices=["text", "pygame", "web"], default="text")
+    parser.add_argument("--host", default="0.0.0.0", help="Host for --mode web")
+    parser.add_argument("--port", type=int, default=8000, help="Port for --mode web")
     args = parser.parse_args()
     if args.mode == "pygame":
         from ui.pygame_ui import run_pygame_ui
 
         run_pygame_ui()
+    elif args.mode == "web":
+        from api.server import run as run_web_server
+
+        run_web_server(args.host, args.port)
     else:
         run_text_mode()
 
